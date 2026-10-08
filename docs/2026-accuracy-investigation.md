@@ -93,3 +93,54 @@ Actions run: https://github.com/haruto-yamanishi/fgc-statbotics/actions/runs/377
 **Keep production model unchanged.** All ~8,700 new combinations were evaluated without demonstrated later-period accuracy improvement. Preserve the models for further prospective trials.
 
 Highest priority: solve the first-game cold-start weakness through independently available pre-match team signals (robot inspection readiness, same-year scouting, actual previous FGC team continuity, disaggregated scoring where allowed), and consider true chronological provenance snapshots of predictions before new match results are published. Do not optimize the public recent-10-match headline directly; retain full-season paired accuracy, Log Loss and Brier for model comparisons.
+
+
+## Further structural research (2026-10-08)
+
+### Independent Bayesian team ratings + offensive output + climbs
+
+Code: \`scripts/experiment-structural-bayes.mjs\`. 6,908 configurations, including a diagonal-Gaussian (Kalman-style) team skill update with opponent-strength-adjusted score observations; independently learned per-team suppression offense; climbing results; winner features; dynamic team-experience gating; and 2026/legacy probability blending.
+
+On 93 played (92 decided) games, the production opponent-aware predictor got **64/92 = 69.6%, Log Loss 0.61709**. Best selected on first 55 games got the **same 64/92**, but improved full-period Log Loss to **0.61104**. The retrospective best over all games also tied at 64/92, Log Loss **0.61046**. No first-55-selected model simultaneously improved middle-segment winner hit count and log loss. Bayesian weighting alone did not generate a reliable winner advantage.
+
+Run: https://github.com/haruto-yamanishi/fgc-statbotics/actions/runs/37744334247
+
+### Exact diagnosis of 2026 misses
+
+Code: \`scripts/diagnose-2026-errors.mjs\`, 93 played / 92 decided:
+
+| Match class | Current winner accuracy |
+|---|---:|
+| All six countries making their first appearance | **18/30 = 60.0%** |
+| All six with at least one prior game | **46/62 = 74.2%** |
+| Predicted confidence 50–55% | 11/14 = 78.6% |
+| Predicted confidence 60–70% | 18/30 = 60.0% |
+| Predicted confidence 70–80% | 8/14 = 57.1% |
+| Predicted confidence at least 80% | 15/16 = 93.8% |
+| Score reversals from base suppression winner to final winner | 4/7 = 57.1% |
+
+This dataset is **heavily imbalanced by experience**. First-round games comprise alliances with 6 first-timers; later games mostly have 0 debutants. Observed hit rate differences may reflect other changing conditions (time, opponent pairings), so they do not independently prove causation.
+
+Run: https://github.com/haruto-yamanishi/fgc-statbotics/actions/runs/37744521528
+
+### Historical-rank plus experience blending
+
+Code: \`scripts/experiment-cold-blend.mjs\`. 6,600 parameter combinations blending the current 2026 model, legacy model and world ranking percentiles of 2023, 2024, 2025, with a falloff based on games played so far.
+
+At 94 played games (93 decided), production: **65/93 = 69.9%**, Log Loss 0.61694. The best *hindsight-selected* 2026 model: **70/93 = 75.3%**, Log Loss 0.58306. The latter favors the 2023 and 2024 ranking signal and neglects 2025. Selecting on the first 35 only, however, returned **65/93** with higher early hit rate but a loss in the next 20 games. **Do not claim 75.3% as prospective accuracy.**
+
+Run: https://github.com/haruto-yamanishi/fgc-statbotics/actions/runs/37744650617
+
+### Cross-year validation falsifies the aggressive ranking prior
+
+Code: \`scripts/validate-cold-crossyear.mjs\`. 14,880 rank-prior candidates selected solely from 2024 + 2025, then assessed on 2026.
+
+On the latest 2026 sample of 95 played / 94 decided, production got **66/94 = 70.2%**, Log Loss 0.61437. The top configuration chosen on historical years only got **56/94 = 59.6%**, Log Loss 0.67275, meaning a sharp regression. Some options improved the first 35 games of both 2024 and 2025, but those only delivered **21/34** on the first 35 of 2026 (baseline 20/34), and broadly fell short of production full-season accuracy.
+
+The difference between 2026's retrospective-best **75.3%** and historically selected **59.6%** is strong evidence that simply fitting tournament rankings to 2026 is overfitting. **Do not merge the retrospective candidate into main.**
+
+Run: https://github.com/haruto-yamanishi/fgc-statbotics/actions/runs/37744773177
+
+### Decision and next research route
+
+The publicly deployed \`main\` model should remain unchanged. Collect actual *pre-match, team-specific* robot readiness/availability and competition scouting rather than trying more historical-rank parameter permutations. For prospective accuracy, freeze a future-game prediction list or snapshots and evaluate these exact probabilities when results arrive. Continue reporting both decisive all-match winner hit rate and calibration/log loss. The homepage last-10-match accuracy is an expressly short-window UI metric, not a model-selection objective.
