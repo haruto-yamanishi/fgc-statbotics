@@ -15,4 +15,4 @@ jobs:
           node-version: '22'
       - run: npm test
       - run: node scripts/compare-live-weights.mjs
-      - run: node scripts/optimize.mjs --validation-year=2026 --trials=160
+      - run: node scripts/diagnose-accuracy.mjs
