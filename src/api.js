@@ -1,4 +1,4 @@
-import { t } from "./i18n.js?v=20261008-3";
+import { t } from "./i18n.js?v=20261008-4";
 
 export const API_BASE = "https://api.first.global";
 export const RESULTS_BASE = "https://results.first.global";

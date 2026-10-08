@@ -116,7 +116,7 @@ const messages = {
     participantsPending: "Predictions appear once participating teams are confirmed.",
     scoreSourceLive: "Uses this year's scores, recent results, and event progress",
     scoreSourcePrior: "Pre-event scores are provisional estimates from past seasons and event progress",
-    nextMatch: "Next match · {match}", field: "Field {field}", redAlliance: "Red alliance", blueAlliance: "Blue alliance",
+    nextMatch: "Upcoming match · {match}", field: "Field {field}", redAlliance: "Red alliance", blueAlliance: "Blue alliance",
     projectedScore: "Projected score", projectedScoreLong: "Projected score · Estimated Points", redBlue: "Red : Blue",
     red: "Red", blue: "Blue", probabilityAria: "Red {red}%, blue {blue}%", probabilityLabel: "{side} {percent}%",
     coveredTeams: "History for {covered}/{total} teams · unofficial model estimate",

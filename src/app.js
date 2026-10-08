@@ -1,7 +1,7 @@
-import { fetchSeason } from "./api.js?v=20261008-3";
+import { fetchSeason } from "./api.js?v=20261008-4";
 import { isOfficialMatch } from "./epa.js";
-import { getLocaleTag, localeTags, resolveLocale, setLocale, t, translateStatic } from "./i18n.js?v=20261008-3";
-import { buildRoster, buildSeasonModel, matchKey, predictMatch, teamCode, teamName } from "./predict.js?v=20261008-3";
+import { getLocaleTag, localeTags, resolveLocale, setLocale, t, translateStatic } from "./i18n.js?v=20261008-4";
+import { buildRoster, buildSeasonModel, matchKey, predictMatch, teamCode, teamName } from "./predict.js?v=20261008-4";
 import { completedRankingScores, countedRankingParticipant, isRankingMatch, projectedFinalRankingScores, projectedRankingPositions, rankingScore } from "./ranking-score.js";
 import { allianceOutcome, projectedOutcome, rankMovement, teamRecord, teamSide } from "./standings.js";
 
@@ -348,11 +348,9 @@ function renderMatchCard(match, projectedRank) {
   if (!prediction) return "";
   const redPct = Math.round(prediction.redProbability * 100);
   const selectedSide = teamSide(match.participants, state.selectedTeamKey);
-  const redTeams = prediction.red.map((p) => teamCodeFromParticipant(p)).join(" · ");
-  const blueTeams = prediction.blue.map((p) => teamCodeFromParticipant(p)).join(" · ");
   return `<article class="match-card">
     <div class="match-card-id"><strong>${escapeHtml(matchLabel(match))}</strong><span>${escapeHtml(matchTime(match))} · ${escapeHtml(t("field", { field: match.field || "—" }))}</span></div>
-    <div class="match-card-sides"><div class="match-side"><b>${escapeHtml(t("red"))}</b><span title="${escapeHtml(redTeams)}">${escapeHtml(redTeams)}</span></div><span class="match-versus">${escapeHtml(t("versus"))}</span><div class="match-side blue"><b>${escapeHtml(t("blue"))}</b><span title="${escapeHtml(blueTeams)}">${escapeHtml(blueTeams)}</span></div></div>
+    <div class="match-card-sides"><div class="match-side"><b>${escapeHtml(t("red"))}</b><div class="match-team-list">${prediction.red.map(scheduleTeam).join("")}</div></div><span class="match-versus">${escapeHtml(t("versus"))}</span><div class="match-side blue"><b>${escapeHtml(t("blue"))}</b><div class="match-team-list">${prediction.blue.map(scheduleTeam).join("")}</div></div></div>
     <div class="match-card-prediction">${predictionBadge(projectedOutcome(redPct, selectedSide), selectedSide ? teamCode(selectedTeam()) : "")}<div class="compact-score"><small>${escapeHtml(t("projectedScore"))}</small><strong><span class="red-value">${prediction.projected?.red ?? "—"}</span> : <span class="blue-value">${prediction.projected?.blue ?? "—"}</span></strong></div><div class="probability-bar" role="img" aria-label="${escapeHtml(t("probabilityAria", { red: redPct, blue: 100 - redPct }))}"><span style="width:${redPct}%"></span></div><div class="probability-labels"><span class="red-value">${escapeHtml(t("probabilityLabel", { side: t("red"), percent: redPct }))}</span><span class="blue-value">${escapeHtml(t("probabilityLabel", { side: t("blue"), percent: 100 - redPct }))}</span></div>${rankingProjection(projectedRank)}</div>
   </article>`;
 }
@@ -478,7 +476,19 @@ function teamCodeFromParticipant(participant) {
 function teamChip(participant) {
   const code = teamCodeFromParticipant(participant);
   const selected = Number(participant.teamKey) === state.selectedTeamKey;
-  return `<span class="team-chip ${selected ? "selected" : ""}"><b>${escapeHtml(code)}</b><small>${escapeHtml(displayName(participant))}</small></span>`;
+  return `<span class="team-chip ${selected ? "selected" : ""}"><span class="team-chip-label"><b>${escapeHtml(code)}</b><small>${escapeHtml(displayName(participant))}</small></span>${teamFlag(participant)}</span>`;
+}
+function scheduleTeam(participant) {
+  const code = teamCodeFromParticipant(participant);
+  const name = displayName(participant);
+  const selected = Number(participant.teamKey) === state.selectedTeamKey;
+  return `<span class="match-team ${selected ? "selected" : ""}" title="${escapeHtml(name)}" aria-label="${escapeHtml(`${code} · ${name}`)}"><b>${escapeHtml(code)}</b>${teamFlag(participant)}</span>`;
+}
+function teamFlag(participant) {
+  const region = String(participant.countryCode || state.roster.find((team) => Number(team.teamKey) === Number(participant.teamKey))?.team?.countryCode || "").toUpperCase();
+  if (!/^[A-Z]{2}$/.test(region)) return `<span class="team-flag team-flag-fallback" aria-hidden="true">🌐</span>`;
+  const flag = String.fromCodePoint(...[...region].map((letter) => 0x1f1e6 + letter.charCodeAt(0) - 65));
+  return `<span class="team-flag" aria-hidden="true">${flag}</span>`;
 }
 function matchLabel(match) {
   const name = String(match.name || `Match ${match.id || ""}`);

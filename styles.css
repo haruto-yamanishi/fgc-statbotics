@@ -94,9 +94,12 @@ input:focus, select:focus, button:focus-visible, a:focus-visible { outline: 2px 
 .alliance.blue .alliance-label { color: var(--blue); }
 .alliance-team-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .alliance.blue .alliance-team-list { justify-content: flex-end; }
-.team-chip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border: 1px solid #e5e7eb; border-radius: 5px; color: #344054; background: #fff; font-size: 12px; white-space: nowrap; }
+.team-chip { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 5px 8px; border: 1px solid #e5e7eb; border-radius: 5px; color: #344054; background: #fff; font-size: 12px; white-space: nowrap; }
 .team-chip.selected { border-color: #93c5fd; background: #eff6ff; font-weight: 750; }
+.team-chip-label { display: flex; align-items: baseline; gap: 5px; }
 .team-chip small { color: #98a2b3; font-size: 10px; }
+.team-flag { display: inline-flex; align-items: center; justify-content: center; height: 24px; font-size: 22px; line-height: 1; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
+.team-flag-fallback { width: 25px; height: 22px; border: 1px solid #e5e7eb; border-radius: 5px; background: #f2f4f7; font-size: 15px; }
 .probability-center { text-align: center; }
 .probability-center strong { display: block; font-size: 28px; letter-spacing: -.04em; }
 .probability-center small { color: var(--muted); font-size: 11px; }
@@ -133,9 +136,14 @@ input:focus, select:focus, button:focus-visible, a:focus-visible { outline: 2px 
 .match-card-sides { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; min-width: 0; }
 .match-side { min-width: 0; }
 .match-side.blue { text-align: right; }
-.match-side b { display: block; color: var(--red); font-size: 11px; }
-.match-side.blue b { color: var(--blue); }
-.match-side span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #475467; font-size: 12px; }
+.match-side > b { display: block; color: var(--red); font-size: 11px; }
+.match-side.blue > b { color: var(--blue); }
+.match-team-list { display: flex; align-items: center; gap: 7px; margin-top: 4px; }
+.match-side.blue .match-team-list { justify-content: flex-end; }
+.match-team { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 34px; padding: 3px 4px; border: 1px solid transparent; border-radius: 5px; color: #475467; font-size: 12px; line-height: 1.1; }
+.match-team.selected { border-color: #93c5fd; background: #eff6ff; color: #344054; }
+.match-team .team-flag { height: 23px; font-size: 21px; }
+.match-team .team-flag-fallback { width: 23px; height: 20px; font-size: 13px; }
 .match-versus { color: #98a2b3; font-size: 11px; }
 .match-card-prediction { min-width: 0; }
 .match-card-prediction .prediction-badge { margin-bottom: 7px; padding: 4px 8px; font-size: 13px; }
