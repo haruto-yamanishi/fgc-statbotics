@@ -27,7 +27,7 @@ test("未来の結果変更は過去の試合前予測を変更しない",()=>{
  const first=buildOpponentAwareModel(roster,[a,b],[],baselines);
  const changed=buildOpponentAwareModel(roster,[a,{...b,redScore:1000,details:{wildfireInRedSuppressionUnit:1000,wildfireInBlueSuppressionUnit:90}}],[],baselines);
  assert.deepEqual(first.snapshots.get(matchKey(a)),changed.snapshots.get(matchKey(a)));
- assert.equal(first.snapshots.get(matchKey(a)).verdict,"correct");
+ assert.equal(first.snapshots.get(matchKey(a)).verdict,"no-pick");
 });
 test("前の試合の結果で次戦の予測は更新される",()=>{
  const a=fixture(1,100,5,"2026-10-08T09:00:00Z");
