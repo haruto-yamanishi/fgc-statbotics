@@ -32,3 +32,21 @@ export function rankingScore(entries) {
   const total = entries.reduce((sum, entry) => sum + entry.score, 0);
   return (total - lowest) / (entries.length - (droppable.length ? 1 : 0));
 }
+
+export function projectedFinalRankingScores(matches, teamKeys, predict) {
+  const scores = new Map(teamKeys.map((key) => [Number(key), completedRankingScores(matches, key)]));
+  for (const match of matches) {
+    if (!isRankingMatch(match) || match.played) continue;
+    const projected = predict(match)?.projected;
+    if (!projected) continue;
+    for (const participant of match.participants || []) {
+      const key = Number(participant.teamKey);
+      const entries = scores.get(key);
+      if (!entries || !countedRankingParticipant(match, key)) continue;
+      const station = Number(participant.station);
+      const side = station >= 10 && station < 20 ? "red" : station >= 20 && station < 30 ? "blue" : null;
+      if (side && Number.isFinite(projected[side])) entries.push({ score: projected[side], redCard: false });
+    }
+  }
+  return new Map([...scores].map(([key, entries]) => [key, rankingScore(entries)]));
+}

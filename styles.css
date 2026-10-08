@@ -176,7 +176,7 @@ input:focus, select:focus, button:focus-visible, a:focus-visible { outline: 2px 
 .result-versus { color: #98a2b3; text-align: center; font-size: 11px; }
 .result-footer { display: flex; justify-content: space-between; gap: 10px; margin-top: 9px; color: var(--muted); font-size: 10px; }
 .table-wrap { overflow: auto; max-height: 640px; border: 1px solid var(--line); border-radius: 5px; }
-table { width: 100%; min-width: 1010px; border-collapse: collapse; font-size: 12px; }
+table { width: 100%; min-width: 1190px; border-collapse: collapse; font-size: 12px; }
 th { position: sticky; top: 0; z-index: 1; padding: 10px 12px; background: #f3f4f6; color: #475467; font-weight: 700; text-align: right; white-space: nowrap; }
 td { padding: 9px 12px; border-top: 1px solid #edf0f2; text-align: right; white-space: nowrap; }
 th:nth-child(2), td:nth-child(2) { text-align: left; }

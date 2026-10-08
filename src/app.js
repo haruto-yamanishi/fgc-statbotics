@@ -2,7 +2,7 @@ import { fetchSeason } from "./api.js";
 import { isOfficialMatch } from "./epa.js";
 import { getLocaleTag, localeTags, resolveLocale, setLocale, t, translateStatic } from "./i18n.js";
 import { buildRoster, buildSeasonModel, matchKey, predictMatch, teamCode, teamName } from "./predict.js";
-import { completedRankingScores, countedRankingParticipant, isRankingMatch, rankingScore } from "./ranking-score.js";
+import { completedRankingScores, countedRankingParticipant, isRankingMatch, projectedFinalRankingScores, rankingScore } from "./ranking-score.js";
 import { allianceOutcome, projectedOutcome, rankMovement, teamRecord, teamSide } from "./standings.js";
 
 const DEFAULT_TEAM = "JPN";
@@ -27,6 +27,7 @@ const state = {
   ratings: new Map(),
   scoring: null,
   snapshots: new Map(),
+  projectedFinalRanks: new Map(),
   selectedTeamKey: null,
   selectedCode: DEFAULT_TEAM,
   loading: false,
@@ -47,7 +48,7 @@ const ids = [
   "team-search", "team-search-status", "team-select", "selected-team-title", "team-summary", "prediction-source",
   "featured-prediction", "schedule-count", "show-team", "show-all", "match-search",
   "prediction-list", "show-more", "results-count", "show-results-team", "show-results-all",
-  "result-list", "results-more", "leader-search", "sort-select", "leaderboard-body",
+  "result-list", "results-more", "leader-search", "sort-select", "sort-projected-final", "projected-final-header", "leaderboard-body",
 ];
 const el = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
 
@@ -146,7 +147,14 @@ async function loadSeason() {
     state.ratings = model.ratings;
     state.scoring = model.scoring;
     state.snapshots = model.snapshots;
+    state.projectedFinalRanks = state.year === 2026
+      ? projectedFinalRankingScores(data.matches, state.roster.map((team) => team.teamKey), (match) => predictMatch(match, model.ratings, model.scoring))
+      : new Map();
     state.historyYears = history.filter(Boolean).length;
+    if (state.year !== 2026 && state.sort === "projectedFinal") {
+      state.sort = "epa";
+      el["sort-select"].value = state.sort;
+    }
     if (!state.userSorted) {
       state.sort = [...state.ratings.values()].some((rating) => rating.modelGames) ? "epa" : "prediction";
       el["sort-select"].value = state.sort;
@@ -390,6 +398,10 @@ function renderResultCard(match) {
 
 function renderLeaderboard() {
   if (!state.data) return;
+  const showProjectedFinal = state.year === 2026;
+  el["sort-projected-final"].hidden = !showProjectedFinal;
+  el["sort-projected-final"].disabled = !showProjectedFinal;
+  el["projected-final-header"].hidden = !showProjectedFinal;
   const rated = [...state.roster].sort((a, b) => (state.ratings.get(Number(b.teamKey))?.rating || 0) - (state.ratings.get(Number(a.teamKey))?.rating || 0));
   const predictionRanks = new Map(rated.map((team, index) => [Number(team.teamKey), index + 1]));
   const rows = state.roster
@@ -401,6 +413,7 @@ function renderLeaderboard() {
     epa: (a, b) => nullableValue(b.metric.epa) - nullableValue(a.metric.epa),
     main: (a, b) => nullableValue(b.metric.mainEpa) - nullableValue(a.metric.mainEpa),
     endgame: (a, b) => nullableValue(b.metric.endgameEpa) - nullableValue(a.metric.endgameEpa),
+    projectedFinal: (a, b) => nullableValue(state.projectedFinalRanks.get(Number(b.team.teamKey))) - nullableValue(state.projectedFinalRanks.get(Number(a.team.teamKey))),
     previous: (a, b) => nullableRank(a.metric.previousRank) - nullableRank(b.metric.previousRank),
   };
   rows.sort((a, b) => (compare[state.sort] || compare.prediction)(a, b) || displayName(a.team).localeCompare(displayName(b.team), getLocaleTag()));
@@ -415,6 +428,7 @@ function renderLeaderboard() {
       <td>${formatDecimal(metric.endgameEpa)}</td>
       <td>${formatNumber(metric.modelGames)}</td>
       <td>${team.rank == null ? "—" : `#${formatNumber(team.rank)}`}</td>
+      ${showProjectedFinal ? `<td>${formatDecimal(state.projectedFinalRanks.get(key))}</td>` : ""}
       <td>${rankMovementBadge(rankMovement(team.rank, metric.previousRank)) || "—"}</td>
       <td>${validPrediction ? `#${predictionRanks.get(key)} · ${signed(metric.rating)}` : "—"}</td>
     </tr>`;

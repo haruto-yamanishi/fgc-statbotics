@@ -49,7 +49,11 @@ const rng = random(seed);
 const resultCache = new Map();
 const baseline = { ...MODEL_PARAMS, onlineScoreRate: MODEL_PARAMS.onlineScoreRate || 0, ratingDecay: MODEL_PARAMS.ratingDecay || 0 };
 const baselineResults = Object.fromEntries([...developmentYears, validationYear].map((year) => [year, evaluate(year, baseline)]));
-if (baselineResults[validationYear].decided < 60) throw new Error(`${validationYear} needs at least 60 decided ranking matches for validation`);
+const minimumValidationMatches = validationYear === 2026 ? 30 : 60;
+if (baselineResults[validationYear].decided < minimumValidationMatches) {
+  throw new Error(`${validationYear} needs at least ${minimumValidationMatches} decided ranking matches for validation`);
+}
+const releaseSampleReady = baselineResults[validationYear].decided >= 60;
 console.log("Baseline", JSON.stringify(baselineResults));
 
 const candidates = new Map();
@@ -97,7 +101,7 @@ const finalists = fields.onlineScoreRate
 for (const candidate of finalists) {
   const validation = evaluate(validationYear, candidate.params);
   candidate.validation = validation;
-  if (!selected && validation.correct >= baselineResults[validationYear].correct + 3
+  if (!selected && releaseSampleReady && validation.correct >= baselineResults[validationYear].correct + 3
     && validation.logLoss < baselineResults[validationYear].logLoss
     && validation.brier <= baselineResults[validationYear].brier
     && validation.scoreMae <= baselineResults[validationYear].scoreMae) {
@@ -113,7 +117,7 @@ console.log("Finalists", JSON.stringify(finalists.map(({ params, results, valida
   validation,
 }))));
 console.log("Selected", JSON.stringify(selected));
-console.log(`Release gate: ${selected ? "pass" : "fail"}`);
+console.log(`Release gate: ${!releaseSampleReady ? `waiting for 60 decided matches (${baselineResults[validationYear].decided} available)` : selected ? "pass" : "fail"}`);
 if (write && selected && JSON.stringify(selected.params) !== JSON.stringify(baseline)) {
   await fs.writeFile(path.join(root, "src/model-config.js"),
     `// Selected by npm run optimize -- --write on ${developmentYears.join(", ")}; ${validationYear} is a validation gate.\nexport const MODEL_PARAMS = Object.freeze(${JSON.stringify(selected.params, null, 2)});\n`);
