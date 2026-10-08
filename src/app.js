@@ -1,5 +1,6 @@
 import { fetchSeason } from "./api.js?v=20261008-4";
 import { predictionAccuracy } from "./accuracy.js";
+import { buildGameAwareModel } from "./game-aware.js";
 import { isOfficialMatch } from "./epa.js";
 import { getLocaleTag, localeTags, resolveLocale, setLocale, t, translateStatic } from "./i18n.js?v=20261008-5";
 import { buildRoster, buildSeasonModel, matchKey, predictMatch, teamCode, teamName } from "./predict.js?v=20261008-5";
@@ -28,6 +29,7 @@ const state = {
   ratings: new Map(),
   scoring: null,
   snapshots: new Map(),
+  gameAware: null,
   currentRankingScores: new Map(),
   projectedFinalRanks: new Map(),
   projectedFinalPositions: new Map(),
@@ -149,7 +151,8 @@ async function loadSeason() {
     const model = buildSeasonModel(state.roster, data.matches, history);
     state.ratings = model.ratings;
     state.scoring = model.scoring;
-    state.snapshots = model.snapshots;
+    state.gameAware = state.year === 2026 ? buildGameAwareModel(state.roster, data.matches, history, model.snapshots) : null;
+    state.snapshots = state.gameAware?.snapshots || model.snapshots;
     state.currentRankingScores = state.year === 2026
       ? new Map(state.roster.map((team) => [Number(team.teamKey), rankingScore(completedRankingScores(data.matches, team.teamKey))]))
       : new Map();
@@ -213,6 +216,12 @@ function renderAll() {
   renderSchedule();
   renderResults();
   renderLeaderboard();
+}
+
+function displayPrediction(match) {
+  const prediction = predictMatch(match, state.ratings, state.scoring);
+  if (prediction && state.gameAware) prediction.redProbability = state.gameAware.probability(match, prediction.redProbability);
+  return prediction;
 }
 
 function renderAccuracy() {
@@ -323,7 +332,7 @@ function renderFeatured() {
     el["featured-prediction"].innerHTML = `<div class="empty-state">${escapeHtml(t("noUpcomingTeam"))}</div>`;
     return;
   }
-  const prediction = predictMatch(next, state.ratings, state.scoring);
+  const prediction = displayPrediction(next);
   if (!prediction) {
     el["featured-prediction"].innerHTML = `<div class="empty-state">${escapeHtml(t("participantsPending"))}</div>`;
     return;
@@ -360,7 +369,7 @@ function renderSchedule() {
 }
 
 function renderMatchCard(match, projectedRank) {
-  const prediction = predictMatch(match, state.ratings, state.scoring);
+  const prediction = displayPrediction(match);
   if (!prediction) return "";
   const redPct = Math.round(prediction.redProbability * 100);
   const selectedSide = teamSide(match.participants, state.selectedTeamKey);
