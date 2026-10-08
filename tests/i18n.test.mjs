@@ -19,12 +19,12 @@ test("HTMLで使う翻訳キーが全て定義されている", () => {
   for (const key of keys) assert.ok(key in allMessages().ja, key);
 });
 
-test("言語選択はURL、保存設定、ブラウザー設定の順で決める", () => {
-  assert.equal(resolveLocale("?lang=pt", "en", "ja-JP"), "pt");
-  assert.equal(resolveLocale("", "fr", "ja-JP"), "fr");
-  assert.equal(resolveLocale("", "", "ko-KR"), "ko");
-  assert.equal(resolveLocale("?lang=xx", "", "ja-JP"), "ja");
+test("言語選択はURL、保存設定の順で決め、初回は英語を表示する", () => {
+  assert.equal(resolveLocale("?lang=pt", "en"), "pt");
+  assert.equal(resolveLocale("", "fr"), "fr");
+  assert.equal(resolveLocale(), "en");
+  assert.equal(resolveLocale("?lang=xx"), "en");
   setLocale("pt");
   assert.equal(t("loadingYear", { year: 2026 }), "Carregando dados de 2026…");
-  setLocale("ja");
+  setLocale("en");
 });

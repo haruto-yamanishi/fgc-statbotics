@@ -37,7 +37,7 @@ const messages = {
     officialManual: "2026 公式ゲームマニュアル ↗",
     footerData: "データ: FIRST Global 公開結果 API · 60 秒ごとに更新",
     footerDisclaimer: "独立した分析サイト · FIRST Global / Statbotics の公式サイトではありません",
-    creator: "制作: FRC Team 9494 メンバー",
+    creator: "制作", creatorName: "山西遥斗", teamWebsite: "チームHP ↗", creatorLinks: "制作者とチームのリンク",
     loadingYear: "{year} 年のデータを読み込み中…", eventState: "{year} · {upcoming} 試合予定 / {played} 試合終了",
     fetchError: "公式データを取得できませんでした: {error}", fetchFailed: "データを取得できません",
     noOfficialRanks: "公式順位はまだ未発表です。参加国は対戦表から表示しています。",
@@ -97,7 +97,7 @@ const messages = {
     officialManual: "2026 official game manual ↗",
     footerData: "Data: FIRST Global public results API · refreshed every 60 seconds",
     footerDisclaimer: "Independent analysis site · not affiliated with FIRST Global or Statbotics",
-    creator: "Created by a member of FRC Team 9494",
+    creator: "Created by", creatorName: "Haruto Yamanishi", teamWebsite: "Team website ↗", creatorLinks: "Creator and team links",
     loadingYear: "Loading {year} data…", eventState: "{year} · {upcoming} upcoming / {played} completed matches",
     fetchError: "Could not fetch official data: {error}", fetchFailed: "Could not load data",
     noOfficialRanks: "Official ranks are not available yet. Participating countries are shown from the schedule.",
@@ -157,7 +157,7 @@ const messages = {
     officialManual: "Manual oficial del juego 2026 ↗",
     footerData: "Datos: API pública de FIRST Global · actualización cada 60 segundos",
     footerDisclaimer: "Sitio de análisis independiente · sin afiliación con FIRST Global ni Statbotics",
-    creator: "Creado por un miembro del FRC Team 9494",
+    creator: "Creado por", creatorName: "Haruto Yamanishi", teamWebsite: "Sitio del equipo ↗", creatorLinks: "Enlaces del creador y el equipo",
     loadingYear: "Cargando datos de {year}…", eventState: "{year} · {upcoming} próximos / {played} partidos completados",
     fetchError: "No se pudieron obtener los datos oficiales: {error}", fetchFailed: "No se pudieron cargar los datos",
     noOfficialRanks: "Aún no se publican las posiciones oficiales. Los países participantes se muestran según el calendario.",
@@ -217,7 +217,7 @@ const messages = {
     officialManual: "Manuel officiel 2026 ↗",
     footerData: "Données : API publique FIRST Global · actualisation toutes les 60 secondes",
     footerDisclaimer: "Site d'analyse indépendant · sans affiliation avec FIRST Global ou Statbotics",
-    creator: "Créé par un membre de FRC Team 9494",
+    creator: "Créé par", creatorName: "Haruto Yamanishi", teamWebsite: "Site de l'équipe ↗", creatorLinks: "Liens du créateur et de l'équipe",
     loadingYear: "Chargement des données {year}…", eventState: "{year} · {upcoming} matchs à venir / {played} terminés",
     fetchError: "Impossible d'obtenir les données officielles : {error}", fetchFailed: "Chargement impossible",
     noOfficialRanks: "Les rangs officiels ne sont pas encore publiés. Les pays participants proviennent du calendrier.",
@@ -277,7 +277,7 @@ const messages = {
     officialManual: "Manual oficial do jogo 2026 ↗",
     footerData: "Dados: API pública FIRST Global · atualização a cada 60 segundos",
     footerDisclaimer: "Site de análise independente · sem vínculo com FIRST Global ou Statbotics",
-    creator: "Criado por um integrante da FRC Team 9494",
+    creator: "Criado por", creatorName: "Haruto Yamanishi", teamWebsite: "Site da equipe ↗", creatorLinks: "Links do criador e da equipe",
     loadingYear: "Carregando dados de {year}…", eventState: "{year} · {upcoming} próximas / {played} partidas concluídas",
     fetchError: "Não foi possível obter os dados oficiais: {error}", fetchFailed: "Não foi possível carregar os dados",
     noOfficialRanks: "As posições oficiais ainda não foram publicadas. Os países participantes vêm da agenda.",
@@ -337,7 +337,7 @@ const messages = {
     officialManual: "2026 年官方比赛手册 ↗",
     footerData: "数据：FIRST Global 公开结果 API · 每 60 秒更新",
     footerDisclaimer: "独立分析网站 · 与 FIRST Global 或 Statbotics 无官方关联",
-    creator: "由 FRC Team 9494 成员制作",
+    creator: "制作", creatorName: "山西遥斗", teamWebsite: "战队网站 ↗", creatorLinks: "作者与战队链接",
     loadingYear: "正在加载 {year} 年数据…", eventState: "{year} · 待赛 {upcoming} 场 / 已结束 {played} 场",
     fetchError: "无法获取官方数据：{error}", fetchFailed: "无法加载数据",
     noOfficialRanks: "官方排名尚未公布。参赛国家暂根据赛程显示。",
@@ -397,7 +397,7 @@ const messages = {
     officialManual: "2026 공식 게임 매뉴얼 ↗",
     footerData: "데이터: FIRST Global 공개 결과 API · 60초마다 갱신",
     footerDisclaimer: "독립 분석 사이트 · FIRST Global 또는 Statbotics의 공식 사이트가 아닙니다",
-    creator: "FRC Team 9494 멤버 제작",
+    creator: "제작", creatorName: "Haruto Yamanishi", teamWebsite: "팀 웹사이트 ↗", creatorLinks: "제작자 및 팀 링크",
     loadingYear: "{year}년 데이터 불러오는 중…", eventState: "{year} · 예정 {upcoming}경기 / 완료 {played}경기",
     fetchError: "공식 데이터를 가져오지 못했습니다: {error}", fetchFailed: "데이터를 불러올 수 없습니다",
     noOfficialRanks: "공식 순위가 아직 발표되지 않았습니다. 참가 국가는 일정에서 표시합니다.",
@@ -431,19 +431,19 @@ const messages = {
   },
 };
 
-let currentLocale = "ja";
+let currentLocale = "en";
 
-export function resolveLocale(query = "", stored = "", browser = "") {
+export function resolveLocale(query = "", stored = "") {
   const requested = new URLSearchParams(query).get("lang");
-  for (const value of [requested, stored, browser]) {
+  for (const value of [requested, stored]) {
     const code = String(value || "").toLowerCase().split(/[-_]/)[0];
     if (code in localeTags) return code;
   }
-  return "ja";
+  return "en";
 }
 
 export function setLocale(locale) {
-  currentLocale = locale in localeTags ? locale : "ja";
+  currentLocale = locale in localeTags ? locale : "en";
   if (typeof document !== "undefined") document.documentElement.lang = localeTags[currentLocale];
 }
 

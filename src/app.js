@@ -53,7 +53,7 @@ const el = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)])
 
 let savedLanguage = "";
 try { savedLanguage = localStorage.getItem("fgc-language") || ""; } catch { /* Storage may be disabled. */ }
-setLocale(resolveLocale(location.search, savedLanguage, navigator.language));
+setLocale(resolveLocale(location.search, savedLanguage));
 el["language-select"].value = getLocaleTag().split("-")[0];
 translateStatic();
 updateFormatters();

@@ -13,7 +13,7 @@ FIRST Global Challenge の公開結果 API を使った、対戦表・試合予�
 - 60 秒ごとに公式データを再取得
 - 日本語、英語、スペイン語、フランス語、ポルトガル語、簡体字中国語、韓国語の表示切り替え
 
-このサイトは FRC Team 9494 のメンバーが制作しました。FIRST Global および Statbotics の公式サイトではありません。
+このサイトは [山西遥斗](https://x.com/haruroute1107)（[FRC Team 9494 Hanabi](https://9494hanabi.com/)）が制作しました。[チーム公式X](https://x.com/FRC_Hanabi) もご覧ください。FIRST Global および Statbotics の公式サイトではありません。
 
 2026 年の FIRST Global Challenge では、FRC のような勝敗に応じた RP ではなく、[公式ゲームマニュアル](https://docs.google.com/document/d/11uHfXaXqNHy9q4LvUZ5AduTErb12A0mZC6fgkDYeBf8/view) 6.3 節の**ランキングスコア**で順位を決めます。各チームのランキング戦得点から最低の1試合を除いた平均で、レッドカードの試合は除外できません。予測ランキングスコアは、公開済みの結果とこれからの試合の予測得点を時系列で組み合わせた非公式の推定値です。初戦だけの場合はその得点を表示し、サロゲート・ノーショーは集計しません。
 
