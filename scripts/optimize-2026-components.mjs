@@ -14,11 +14,11 @@ const fetched=await Promise.all(years.map(async year=>{
 }));
 const seasons=new Map(fetched);
 const cur=seasons.get(2026);
+const time=m=>{let t=Date.parse(m.scheduledTime);return Number.isFinite(t)?t:Number(m.id||0)};
 const matches=qualificationMatches(cur.matches).sort((a,b)=>time(a)-time(b)||Number(a.id||0)-Number(b.id||0));
 const roster=buildRoster(cur.rankings,cur.matches);
 const prior=buildRatings(roster,[],[seasons.get(2025),seasons.get(2024)]);
 const baseline=buildSeasonModel(roster,cur.matches,[seasons.get(2025),seasons.get(2024)]).snapshots;
-const time=m=>{let t=Date.parse(m.scheduledTime);return Number.isFinite(t)?t:Number(m.id||0)};
 const getTeams=(m,side)=>(m.participants||[]).filter(p=>{const i=Number(p.station);return side==="red"?i>=10&&i<20:i>=20&&i<30;}).sort((a,b)=>Number(a.station)-Number(b.station)).map(p=>Number(p.teamKey));
 const sig=x=>1/(1+Math.exp(-Math.max(-20,Math.min(20,x))));
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
