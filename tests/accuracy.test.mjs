@@ -22,30 +22,34 @@ test("評価可能な試合がないときは0%と表示せず欠損扱いにす
   assert.equal(predictionAccuracy(new Map([["draw", { verdict: "tie" }]])).rate, null);
 });
 
-test("直近10試合のうち最後の10試合だけで的中率を算出する", () => {
-  const snapshots = new Map(Array.from({ length: 13 }, (_, i) =>
-    [String(i + 1), { verdict: i < 3 ? "correct" : i < 7 ? "incorrect" : "correct" }]));
+test("直近30試合だけで的中率を算出し、それより古い試合を含めない", () => {
+  const snapshots = new Map([
+    ...Array.from({ length: 3 }, (_, i) => ["old" + i, { verdict: "correct" }]),
+    ...Array.from({ length: 12 }, (_, i) => ["incorrect" + i, { verdict: "incorrect" }]),
+    ...Array.from({ length: 18 }, (_, i) => ["correct" + i, { verdict: "correct" }]),
+  ]);
   const recent = predictionAccuracy(snapshots, ACCURACY_WINDOW_MATCHES);
-  assert.equal(ACCURACY_WINDOW_MATCHES, 10);
-  assert.equal(recent.eligible, 10);
-  assert.equal(recent.correct, 6);
-  assert.equal(recent.incorrect, 4);
+  assert.equal(ACCURACY_WINDOW_MATCHES, 30);
+  assert.equal(recent.eligible, 30);
+  assert.equal(recent.correct, 18);
+  assert.equal(recent.incorrect, 12);
   assert.equal(recent.rate, 60);
-  assert.equal(predictionAccuracy(snapshots).correct, 9);
+  assert.equal(predictionAccuracy(snapshots).correct, 21);
 });
 
-test("直近10試合を切り出してから引き分けと50:50を除外する", () => {
-  const entries = [
+test("直近30試合を選んだ後で引き分けと50:50を分母から除外する", () => {
+  const matches = new Map([
     ["old", { verdict: "correct" }],
-    ...Array.from({ length: 8 }, (_, i) => ["game" + i, { verdict: "incorrect" }]),
+    ...Array.from({ length: 28 }, (_, i) => ["game" + i, { verdict: "incorrect" }]),
     ["draw", { verdict: "tie" }],
     ["no-pick", { verdict: "no-pick" }],
-  ];
-  const recent = predictionAccuracy(new Map(entries), ACCURACY_WINDOW_MATCHES);
-  assert.deepEqual(recent, { correct: 0, incorrect: 8, ties: 1, noPick: 1, eligible: 8, rate: 0 });
+  ]);
+  assert.deepEqual(predictionAccuracy(matches, ACCURACY_WINDOW_MATCHES), {
+    correct: 0, incorrect: 28, ties: 1, noPick: 1, eligible: 28, rate: 0,
+  });
 });
 
-test("直近10試合未満でもその試合数で正しく集計する", () => {
+test("直近30試合に満たない大会でも集計できる", () => {
   const matches = new Map([
     ["1", { verdict: "correct" }],
     ["2", { verdict: "incorrect" }],
