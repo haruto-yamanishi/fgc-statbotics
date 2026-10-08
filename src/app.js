@@ -1,6 +1,6 @@
 import { fetchSeason } from "./api.js";
 import { isOfficialMatch } from "./epa.js";
-import { getLocaleTag, localeTags, resolveLocale, setLocale, t, translateStatic } from "./i18n.js";
+import { getLocaleTag, localeTags, resolveLocale, setLocale, t, translateStatic } from "./i18n.js?v=20261008-2";
 import { buildRoster, buildSeasonModel, matchKey, predictMatch, teamCode, teamName } from "./predict.js";
 import { completedRankingScores, countedRankingParticipant, isRankingMatch, projectedFinalRankingScores, projectedRankingPositions, rankingScore } from "./ranking-score.js";
 import { allianceOutcome, projectedOutcome, rankMovement, teamRecord, teamSide } from "./standings.js";
@@ -27,6 +27,7 @@ const state = {
   ratings: new Map(),
   scoring: null,
   snapshots: new Map(),
+  currentRankingScores: new Map(),
   projectedFinalRanks: new Map(),
   projectedFinalPositions: new Map(),
   selectedTeamKey: null,
@@ -49,7 +50,7 @@ const ids = [
   "team-search", "team-search-status", "team-select", "selected-team-title", "team-summary", "prediction-source",
   "featured-prediction", "schedule-count", "show-team", "show-all", "match-search",
   "prediction-list", "show-more", "results-count", "show-results-team", "show-results-all",
-  "result-list", "results-more", "leader-search", "sort-select", "sort-projected-final", "projected-final-header", "leaderboard-body",
+  "result-list", "results-more", "leader-search", "sort-select", "sort-current-ranking", "sort-projected-final", "current-ranking-header", "projected-final-header", "leaderboard-body",
 ];
 const el = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
 
@@ -148,12 +149,15 @@ async function loadSeason() {
     state.ratings = model.ratings;
     state.scoring = model.scoring;
     state.snapshots = model.snapshots;
+    state.currentRankingScores = state.year === 2026
+      ? new Map(state.roster.map((team) => [Number(team.teamKey), rankingScore(completedRankingScores(data.matches, team.teamKey))]))
+      : new Map();
     state.projectedFinalRanks = state.year === 2026
       ? projectedFinalRankingScores(data.matches, state.roster.map((team) => team.teamKey), (match) => predictMatch(match, model.ratings, model.scoring))
       : new Map();
     state.projectedFinalPositions = projectedRankingPositions(state.projectedFinalRanks);
     state.historyYears = history.filter(Boolean).length;
-    if (state.year !== 2026 && state.sort === "projectedFinal") {
+    if (state.year !== 2026 && ["currentRanking", "projectedFinal"].includes(state.sort)) {
       state.sort = "epa";
       el["sort-select"].value = state.sort;
     }
@@ -278,7 +282,7 @@ function renderTeam() {
   const movement = rankMovement(team.rank, metric.previousRank);
   const componentNote = t(state.year === 2026 ? "scoreDetailsPending" : "components2026");
   const key = Number(team.teamKey);
-  const currentRankingScore = state.year === 2026 ? rankingScore(completedRankingScores(state.data.matches, key)) : null;
+  const currentRankingScore = state.currentRankingScores.get(key);
   const projectedScore = state.projectedFinalRanks.get(key);
   const projectedPosition = state.projectedFinalPositions.get(key);
   el["selected-team-title"].textContent = `${displayName(team)} · ${teamCode(team)}`;
@@ -410,8 +414,11 @@ function renderResultCard(match) {
 function renderLeaderboard() {
   if (!state.data) return;
   const showProjectedFinal = state.year === 2026;
+  el["sort-current-ranking"].hidden = !showProjectedFinal;
+  el["sort-current-ranking"].disabled = !showProjectedFinal;
   el["sort-projected-final"].hidden = !showProjectedFinal;
   el["sort-projected-final"].disabled = !showProjectedFinal;
+  el["current-ranking-header"].hidden = !showProjectedFinal;
   el["projected-final-header"].hidden = !showProjectedFinal;
   const rated = [...state.roster].sort((a, b) => (state.ratings.get(Number(b.teamKey))?.rating || 0) - (state.ratings.get(Number(a.teamKey))?.rating || 0));
   const predictionRanks = new Map(rated.map((team, index) => [Number(team.teamKey), index + 1]));
@@ -424,16 +431,17 @@ function renderLeaderboard() {
     epa: (a, b) => nullableValue(b.metric.epa) - nullableValue(a.metric.epa),
     main: (a, b) => nullableValue(b.metric.mainEpa) - nullableValue(a.metric.mainEpa),
     endgame: (a, b) => nullableValue(b.metric.endgameEpa) - nullableValue(a.metric.endgameEpa),
+    currentRanking: (a, b) => nullableValue(state.currentRankingScores.get(Number(b.team.teamKey))) - nullableValue(state.currentRankingScores.get(Number(a.team.teamKey))),
     projectedFinal: (a, b) => nullableValue(state.projectedFinalRanks.get(Number(b.team.teamKey))) - nullableValue(state.projectedFinalRanks.get(Number(a.team.teamKey))),
     previous: (a, b) => nullableRank(a.metric.previousRank) - nullableRank(b.metric.previousRank),
   };
   rows.sort((a, b) => (compare[state.sort] || compare.prediction)(a, b) || displayName(a.team).localeCompare(displayName(b.team), getLocaleTag()));
-  el["leaderboard-body"].innerHTML = rows.map(({ team, metric }) => {
+  el["leaderboard-body"].innerHTML = rows.map(({ team, metric }, index) => {
     const key = Number(team.teamKey);
     const validPrediction = metric.historical || metric.modelGames;
-    const projectedPosition = state.projectedFinalPositions.get(key);
     const projectedScore = state.projectedFinalRanks.get(key);
     return `<tr data-team-key="${key}" class="${key === state.selectedTeamKey ? "selected" : ""}" tabindex="0" aria-label="${escapeHtml(t("selectTeamAria", { name: displayName(team) }))}">
+      <td>#${formatNumber(index + 1)}</td>
       <td>${metric.epaRank ? `#${metric.epaRank}` : "—"}</td>
       <td><div class="table-team"><b>${escapeHtml(teamCode(team))}</b><span>${escapeHtml(displayName(team))}</span></div></td>
       <td>${formatDecimal(metric.epa)}</td>
@@ -441,7 +449,7 @@ function renderLeaderboard() {
       <td>${formatDecimal(metric.endgameEpa)}</td>
       <td>${formatNumber(metric.modelGames)}</td>
       <td>${team.rank == null ? "—" : `#${formatNumber(team.rank)}`}</td>
-      ${showProjectedFinal ? `<td>${projectedPosition != null ? `<span class="projected-score-cell"><b class="projected-rank">#${formatNumber(projectedPosition)}</b><span>${formatDecimal(projectedScore)}</span></span>` : "—"}</td>` : ""}
+      ${showProjectedFinal ? `<td>${formatDecimal(state.currentRankingScores.get(key))}</td><td>${formatDecimal(projectedScore)}</td>` : ""}
       <td>${rankMovementBadge(rankMovement(team.rank, metric.previousRank)) || "—"}</td>
       <td>${validPrediction ? `#${predictionRanks.get(key)} · ${signed(metric.rating)}` : "—"}</td>
     </tr>`;

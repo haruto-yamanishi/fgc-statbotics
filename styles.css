@@ -176,18 +176,16 @@ input:focus, select:focus, button:focus-visible, a:focus-visible { outline: 2px 
 .result-versus { color: #98a2b3; text-align: center; font-size: 11px; }
 .result-footer { display: flex; justify-content: space-between; gap: 10px; margin-top: 9px; color: var(--muted); font-size: 10px; }
 .table-wrap { overflow: auto; max-height: 640px; border: 1px solid var(--line); border-radius: 5px; }
-table { width: 100%; min-width: 1190px; border-collapse: collapse; font-size: 12px; }
+table { width: 100%; min-width: 1390px; border-collapse: collapse; font-size: 12px; }
 th { position: sticky; top: 0; z-index: 1; padding: 10px 12px; background: #f3f4f6; color: #475467; font-weight: 700; text-align: right; white-space: nowrap; }
 td { padding: 9px 12px; border-top: 1px solid #edf0f2; text-align: right; white-space: nowrap; }
-th:nth-child(2), td:nth-child(2) { text-align: left; }
+th:nth-child(3), td:nth-child(3) { text-align: left; }
 tbody tr { cursor: pointer; }
 tbody tr:hover { background: #f8fafc; }
 tbody tr.selected { background: #eff6ff; }
 .table-team { display: flex; align-items: center; gap: 9px; }
 .table-team b { display: inline-grid; place-items: center; min-width: 40px; padding: 3px 5px; border-radius: 4px; background: #e8edf4; font-size: 10px; }
 .table-team span { overflow: hidden; text-overflow: ellipsis; }
-.projected-score-cell { display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 8px; }
-.projected-rank { padding: 2px 5px; border-radius: 4px; background: #eff6ff; color: #1d4ed8; font-size: 11px; }
 .model-panel { margin: 0 0 38px; padding: 18px 20px; border-left: 3px solid #94a3b8; background: #f1f5f9; color: #475467; }
 .model-panel h2 { margin-bottom: 8px; font-size: 17px; color: #344054; }
 .model-panel p { margin: 0 0 8px; font-size: 12px; line-height: 1.7; }
