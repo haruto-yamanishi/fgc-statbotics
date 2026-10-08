@@ -1,3 +1,5 @@
+import { t } from "./i18n.js";
+
 export const API_BASE = "https://api.first.global";
 export const RESULTS_BASE = "https://results.first.global";
 
@@ -13,12 +15,12 @@ export async function fetchSeason(year, signal, includeDetails = false) {
   });
 
   if (!response.ok) {
-    throw new Error(`FIRST Global API が HTTP ${response.status} を返しました`);
+    throw new Error(t("apiHttp", { status: response.status }));
   }
 
   const data = await response.json();
   if (!data || !Array.isArray(data.rankings) || !Array.isArray(data.matches)) {
-    throw new Error("FIRST Global API のデータ形式が予想と異なります");
+    throw new Error(t("apiInvalid"));
   }
   return data;
 }

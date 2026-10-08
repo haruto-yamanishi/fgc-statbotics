@@ -1,20 +1,24 @@
 import { allianceRows, buildTeamMetrics, isOfficialMatch } from "./epa.js";
+import { t } from "./i18n.js";
 import { MODEL_PARAMS } from "./model-config.js";
 
 const PRIOR_WEIGHTS = [0.7, 0.3];
-const regionNames = new Intl.DisplayNames(["ja"], { type: "region" });
+const regionNames = new Map();
 
 export function teamCode(record) {
   return String(record?.team?.country || record?.country || "").toUpperCase();
 }
 
-export function teamNameJa(record) {
+export function teamName(record, locale = "ja") {
   const code2 = String(record?.team?.countryCode || record?.countryCode || "").toUpperCase();
-  const translated = /^[A-Z]{2}$/.test(code2) ? regionNames.of(code2) : null;
+  if (!regionNames.has(locale)) regionNames.set(locale, new Intl.DisplayNames([locale], { type: "region" }));
+  const translated = /^[A-Z]{2}$/.test(code2) ? regionNames.get(locale).of(code2) : null;
   return translated && translated !== code2
     ? translated
-    : String(record?.team?.name || record?.country || teamCode(record) || "不明");
+    : String(record?.team?.name || record?.country || teamCode(record) || t("unknown"));
 }
+
+export function teamNameJa(record) { return teamName(record, "ja"); }
 
 export function buildRoster(rankings = [], matches = []) {
   const teams = new Map(rankings.map((ranking) => [Number(ranking.teamKey), ranking]));

@@ -28,8 +28,10 @@ a { color: inherit; }
 .topbar nav a, .official-link { color: #d1d5db; text-decoration: none; font-size: 14px; }
 .topbar nav a:hover, .official-link:hover { color: #fff; }
 .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 22px; }
-.season-control { display: flex; align-items: center; gap: 8px; white-space: nowrap; color: #d1d5db; font-size: 13px; }
-.season-control select { width: 91px; padding: 5px 9px; background: #fff; color: #1f2937; border: 1px solid #d1d5db; border-radius: 5px; }
+.season-control, .language-control { display: flex; align-items: center; gap: 8px; white-space: nowrap; color: #d1d5db; font-size: 13px; }
+.season-control select, .language-control select { padding: 5px 9px; background: #fff; color: #1f2937; border: 1px solid #d1d5db; border-radius: 5px; }
+.season-control select { width: 91px; }
+.language-control select { max-width: 145px; }
 .page-heading { display: flex; align-items: end; justify-content: space-between; gap: 28px; padding: 42px 0 28px; }
 .eyebrow { margin: 0 0 6px; color: #64748b; font-size: 11px; font-weight: 750; letter-spacing: .1em; }
 h1, h2, h3, p { margin-top: 0; }
@@ -37,6 +39,7 @@ h1 { margin-bottom: 9px; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.03
 h2 { margin-bottom: 0; font-size: 24px; line-height: 1.3; letter-spacing: -.025em; }
 h3 { margin-bottom: 0; font-size: 18px; }
 .lead, .section-description { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+.creator-credit { margin: 8px 0 0; color: #475467; font-size: 12px; font-weight: 700; }
 .update-panel { flex: none; display: grid; justify-items: end; gap: 3px; color: #475467; font-size: 13px; }
 .update-panel > span { font-weight: 700; }
 .update-panel small { font-size: 11px; color: var(--muted); }
@@ -104,6 +107,12 @@ input:focus, select:focus, button:focus-visible, a:focus-visible { outline: 2px 
 .probability-labels { display: flex; justify-content: space-between; margin-top: 7px; font-size: 14px; font-weight: 750; }
 .probability-labels .red-value { color: var(--red); }
 .probability-labels .blue-value { color: var(--blue); }
+.ranking-projection { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 10px; padding: 7px 0 0; border-top: 1px solid var(--line); text-align: left; }
+.ranking-projection span { color: var(--muted); font-size: 11px; }
+.ranking-projection small { display: block; font-size: 10px; }
+.ranking-projection strong { color: #344054; font-size: 16px; white-space: nowrap; }
+.probability-center .ranking-projection { margin-top: 12px; }
+.probability-center .ranking-projection strong { display: inline; font-size: 18px; }
 .featured-footer { display: flex; justify-content: space-between; gap: 16px; margin-top: 17px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
 .list-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 12px; }
 .list-heading h3 span { color: var(--muted); font-size: 13px; font-weight: 400; }
@@ -178,6 +187,7 @@ tbody tr.selected { background: #eff6ff; }
 .model-panel h2 { margin-bottom: 8px; font-size: 17px; color: #344054; }
 .model-panel p { margin: 0 0 8px; font-size: 12px; line-height: 1.7; }
 .model-panel p:last-child { margin-bottom: 0; }
+.model-panel a { color: #1d4ed8; }
 footer { border-top: 1px solid var(--line); background: #fff; }
 .footer-inner { display: flex; justify-content: space-between; gap: 20px; padding: 20px 0 28px; color: var(--muted); font-size: 11px; }
 @media (max-width: 900px) {
@@ -194,7 +204,9 @@ footer { border-top: 1px solid var(--line); background: #fff; }
   .brand { font-size: 17px; }
   .topbar nav { order: 3; width: 100%; gap: 20px; }
   .topbar nav a { font-size: 12px; }
-  .topbar-actions { gap: 10px; }
+  .topbar-actions { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .language-control, .season-control { font-size: 11px; gap: 4px; }
+  .language-control select { max-width: 112px; }
   .official-link { display: none; }
   .page-heading { align-items: start; flex-direction: column; padding-top: 26px; }
   .update-panel { justify-items: start; }
