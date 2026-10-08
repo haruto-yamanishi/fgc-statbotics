@@ -145,7 +145,7 @@ const OPTIONS={history:[0,.5,1,1.5,2],priorVar:[.25,1,2,4],noise:[1,3,6,12,30],
  offMode:["log","sqrt"],climbPrior:[1,3,8],gate:[0,1,3,6],gatePrior:[.5,1,3],
  mix:[.25,.5,.75,1],blendMode:["linear","logit"],temperature:[.5,1,1.5],confidence:[.8,1,1.2],
  decay:[0,.01,.04],ratingClip:[2,4]};
-const keys=Object.keys(OPTIONS);
+const optionKeys=Object.keys(OPTIONS);
 let seed=20261008;const rng=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
 const choose=xs=>xs[Math.floor(rng()*xs.length)];
 const experiments=[];
@@ -153,11 +153,11 @@ let leaders=[];
 const metricCost=x=>x.dev.logLoss+.07*(1-x.dev.accuracy);
 for(let trial=0;trial<7000;trial++){
  let c={...DEFAULT};
- if(trial<2200){for(const key of keys)c[key]=choose(OPTIONS[key]);}
- else if(trial<3500){for(let z=0;z<10;z++){const k=choose(keys);c[k]=choose(OPTIONS[k]);}}
+ if(trial<2200){for(const key of optionKeys)c[key]=choose(OPTIONS[key]);}
+ else if(trial<3500){for(let z=0;z<10;z++){const k=choose(optionKeys);c[k]=choose(OPTIONS[k]);}}
  else{
   const parent=choose(leaders)?.c||DEFAULT;c={...parent};
-  for(let z=0;z<1+Math.floor(rng()*7);z++){const key=choose(keys);c[key]=choose(OPTIONS[key]);}
+  for(let z=0;z<1+Math.floor(rng()*7);z++){const key=choose(optionKeys);c[key]=choose(OPTIONS[key]);}
  }
  if(!c.mainWeight&&!c.offWeight&&!c.winWeight&&!c.climbWeight)continue;
  const r=predictor(c);
