@@ -1,12 +1,7 @@
 import { allianceRows, buildTeamMetrics, isOfficialMatch } from "./epa.js";
+import { MODEL_PARAMS } from "./model-config.js";
 
 const PRIOR_WEIGHTS = [0.7, 0.3];
-// A different game is played every year, so transfer only part of the
-// historical early-to-late scoring pattern into the new season.
-const PACE_STRENGTH = 0.7;
-// 2024 season ratings predicting 2025 ranking-match winners: scale 2.5 had
-// lower log loss than 2.0, 3.0, or an even 50% baseline (318 decided matches).
-const PROBABILITY_SCALE = 2.5;
 const regionNames = new Intl.DisplayNames(["ja"], { type: "region" });
 
 export function teamCode(record) {
@@ -44,14 +39,14 @@ export function buildRoster(rankings = [], matches = []) {
   return [...teams.values()];
 }
 
-export function buildRatings(roster, currentMatches, history = []) {
-  const current = buildTeamMetrics(roster, currentMatches);
+export function buildRatings(roster, currentMatches, history = [], params = MODEL_PARAMS) {
+  const current = buildTeamMetrics(roster, currentMatches, params.epaLambda);
   const currentZ = standardized(current);
   const prior = new Map();
 
   history.forEach((season, index) => {
     if (!season?.rankings?.length) return;
-    const metrics = buildTeamMetrics(season.rankings, season.matches || []);
+    const metrics = buildTeamMetrics(season.rankings, season.matches || [], params.epaLambda);
     const normalized = standardized(metrics);
     for (const ranking of season.rankings) {
       const code = teamCode(ranking);
@@ -71,7 +66,7 @@ export function buildRatings(roster, currentMatches, history = []) {
     const historical = prior.get(teamCode(team));
     const games = metric.modelGames || 0;
     const currentWeight = games / (games + 8);
-    const rating = (1 - currentWeight) * (historical?.rating || 0) * 0.7
+    const rating = (1 - currentWeight) * (historical?.rating || 0) * params.historyShrink
       + currentWeight * (currentZ.get(key) || 0);
     return [key, {
       ...metric,
@@ -82,7 +77,7 @@ export function buildRatings(roster, currentMatches, history = []) {
   }));
 }
 
-export function scoreContext(matches = [], history = [], schedule = matches, pace = historicalPace(history), phaseByMatch = matchPhases(schedule)) {
+export function scoreContext(matches = [], history = [], schedule = matches, params = MODEL_PARAMS, pace = historicalPace(history, params), phaseByMatch = matchPhases(schedule)) {
   const historical = history.map((season) => season ? allianceRows(season.matches || []).map((row) => row.score) : []);
   const weightTotal = historical.reduce((sum, scores, index) => sum + (scores.length ? PRIOR_WEIGHTS[index] || 0 : 0), 0);
   const priorMean = weightTotal ? historical.reduce((sum, scores, index) => sum + (scores.length ? average(scores) * (PRIOR_WEIGHTS[index] || 0) : 0), 0) / weightTotal : null;
@@ -92,30 +87,30 @@ export function scoreContext(matches = [], history = [], schedule = matches, pac
   // a second time when projecting another early match.
   const scores = allianceRows(matches).map((row) => row.score / paceFactor(pace, phaseByMatch.get(matchKey(row.match))));
   if (priorMean == null && !scores.length) return null;
-  if (!scores.length) return { mean: priorMean, deviation: Math.max(8, priorDeviation), source: "prior", playedAlliances: 0, pace, phaseByMatch };
+  if (!scores.length) return { mean: priorMean, deviation: Math.max(8, priorDeviation), source: "prior", playedAlliances: 0, pace, phaseByMatch, params };
 
   // A small historical prior gives way as soon as this year's scores arrive.
-  const currentMean = 0.4 * average(scores) + 0.6 * average(scores.slice(-24));
+  const currentMean = (1 - params.recentScoreWeight) * average(scores) + params.recentScoreWeight * average(scores.slice(-24));
   const currentDeviation = deviation(scores);
-  const currentWeight = priorMean == null ? 1 : scores.length / (scores.length + 2);
+  const currentWeight = priorMean == null ? 1 : scores.length / (scores.length + params.scorePriorAlliances);
   const mean = (1 - currentWeight) * (priorMean ?? currentMean) + currentWeight * currentMean;
   const spread = (1 - currentWeight) * (priorDeviation ?? currentDeviation) + currentWeight * currentDeviation;
-  return { mean, deviation: Math.max(8, spread), source: "live", playedAlliances: scores.length, pace, phaseByMatch };
+  return { mean, deviation: Math.max(8, spread), source: "live", playedAlliances: scores.length, pace, phaseByMatch, params };
 }
 
 export function matchKey(match) {
   return `${match.eventKey || ""}:${match.tournamentKey || ""}:${match.id || match.name || ""}`;
 }
 
-export function buildSeasonModel(roster, matches, history = []) {
-  const ratings = new Map([...buildRatings(roster, [], history)].map(([key, value]) => [key, { ...value, observedGames: 0 }]));
+export function buildSeasonModel(roster, matches, history = [], params = MODEL_PARAMS) {
+  const ratings = new Map([...buildRatings(roster, [], history, params)].map(([key, value]) => [key, { ...value, observedGames: 0 }]));
   const snapshots = new Map();
-  const pace = historicalPace(history);
+  const pace = historicalPace(history, params);
   const phaseByMatch = matchPhases(matches);
   const played = matches.filter((match) => isOfficialMatch(match) && match.played && Number.isFinite(Number(match.redScore)) && Number.isFinite(Number(match.blueScore)))
     .sort((a, b) => matchTime(a) - matchTime(b) || Number(a.id || 0) - Number(b.id || 0));
   const completed = [];
-  let scoring = scoreContext([], history, matches, pace, phaseByMatch);
+  let scoring = scoreContext([], history, matches, params, pace, phaseByMatch);
 
   for (let index = 0; index < played.length;) {
     const time = matchTime(played[index]);
@@ -123,7 +118,7 @@ export function buildSeasonModel(roster, matches, history = []) {
     while (index < played.length && matchTime(played[index]) === time) group.push(played[index++]);
     const changes = new Map();
     for (const match of group) {
-      const prediction = predictMatch(match, ratings, scoring);
+      const prediction = predictMatch(match, ratings, scoring, params);
       if (!prediction) continue;
       const actualWinner = Number(match.redScore) === Number(match.blueScore)
         ? "tie" : Number(match.redScore) > Number(match.blueScore) ? "red" : "blue";
@@ -138,7 +133,7 @@ export function buildSeasonModel(roster, matches, history = []) {
       const expectedDifference = prediction.projected ? prediction.projected.red - prediction.projected.blue : 0;
       const difference = Number(match.redScore) - Number(match.blueScore) - expectedDifference;
       const scale = Math.max(12, scoring?.deviation || 25) * Math.SQRT2;
-      const adjustment = clamp(0.14 * difference / scale, -0.35, 0.35);
+      const adjustment = clamp(params.onlineRate * difference / scale, -params.onlineMaxAdjustment, params.onlineMaxAdjustment);
       for (const participant of prediction.red) addChange(changes, participant.teamKey, adjustment);
       for (const participant of prediction.blue) addChange(changes, participant.teamKey, -adjustment);
     }
@@ -150,15 +145,15 @@ export function buildSeasonModel(roster, matches, history = []) {
       }
     }
     completed.push(...group);
-    scoring = scoreContext(completed, history, matches, pace, phaseByMatch);
+    scoring = scoreContext(completed, history, matches, params, pace, phaseByMatch);
   }
 
-  const current = buildTeamMetrics(roster, matches);
+  const current = buildTeamMetrics(roster, matches, params.epaLambda);
   for (const [key, metric] of current) ratings.set(key, { ...ratings.get(key), ...metric });
   return { ratings, scoring, snapshots };
 }
 
-export function predictMatch(match, ratings, scoring = null) {
+export function predictMatch(match, ratings, scoring = null, params = scoring?.params || MODEL_PARAMS) {
   const participants = match.participants || [];
   const red = participants.filter((p) => Number(p.station) >= 10 && Number(p.station) < 20);
   const blue = participants.filter((p) => Number(p.station) >= 20 && Number(p.station) < 30);
@@ -167,15 +162,15 @@ export function predictMatch(match, ratings, scoring = null) {
   const total = (side) => side.reduce((sum, p) => sum + (ratings.get(Number(p.teamKey))?.rating || 0), 0);
   const redRating = total(red);
   const blueRating = total(blue);
-  const redProbability = clamp(1 / (1 + Math.exp(-(redRating - blueRating) / PROBABILITY_SCALE)), 0.05, 0.95);
+  const redProbability = clamp(1 / (1 + Math.exp(-(redRating - blueRating) / params.probabilityScale)), 0.05, 0.95);
   const covered = participants.filter((p) => {
     const rating = ratings.get(Number(p.teamKey));
     return rating?.historical || rating?.observedGames || rating?.modelGames;
   }).length;
   const phase = scoring ? paceFactor(scoring.pace, scoring.phaseByMatch?.get(matchKey(match))) : 1;
   const projected = scoring ? {
-    red: Math.max(0, Math.round((scoring.mean + (redRating / red.length) * scoring.deviation * 0.65) * phase)),
-    blue: Math.max(0, Math.round((scoring.mean + (blueRating / blue.length) * scoring.deviation * 0.65) * phase)),
+    red: Math.max(0, Math.round((scoring.mean + (redRating / red.length) * scoring.deviation * params.scoreRatingScale) * phase)),
+    blue: Math.max(0, Math.round((scoring.mean + (blueRating / blue.length) * scoring.deviation * params.scoreRatingScale) * phase)),
   } : null;
   return { red, blue, redProbability, covered, totalTeams: participants.length, projected };
 }
@@ -196,7 +191,7 @@ function deviation(values) {
   return values.length ? Math.sqrt(average(values.map((value) => (value - mean) ** 2))) : 0;
 }
 
-function historicalPace(history) {
+function historicalPace(history, params) {
   const seasons = history.map((season, index) => {
     const matches = rankingSchedule(season?.matches || [])
       .filter((match) => match.played && Number.isFinite(Number(match.redScore)) && Number.isFinite(Number(match.blueScore)))
@@ -213,7 +208,7 @@ function historicalPace(history) {
   }).filter(Boolean);
   const totalWeight = seasons.reduce((sum, season) => sum + season.weight, 0);
   if (!totalWeight) return null;
-  return [0, 1, 2, 3].map((bin) => 1 + PACE_STRENGTH * (seasons.reduce((sum, season) => sum + season.bins[bin] * season.weight, 0) / totalWeight - 1));
+  return [0, 1, 2, 3].map((bin) => 1 + params.paceStrength * (seasons.reduce((sum, season) => sum + season.bins[bin] * season.weight, 0) / totalWeight - 1));
 }
 
 function matchPhases(matches) {

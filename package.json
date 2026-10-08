@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
+    "optimize": "node scripts/optimize.mjs",
     "serve": "python3 -m http.server 8080"
   }
 }

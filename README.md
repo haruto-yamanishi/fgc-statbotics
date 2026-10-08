@@ -21,6 +21,8 @@ FIRST Global Challenge の公開結果 API を使った、対戦表・試合予�
 
 FGC EPA はランキング戦のアライアンス得点からチームの寄与を加法モデルで推定します。2026 年の終盤得点は[公式ゲームマニュアル](https://docs.google.com/document/d/11uHfXaXqNHy9q4LvUZ5AduTErb12A0mZC6fgkDYeBf8/view)の登坂倍率による加点、パートナークライム、協力ボーナスから求めます。本体得点は公式得点から終盤得点を引いた値です。詳細データがない場合、内訳 EPA は表示しません。予測と EPA は参考値で、FIRST Global や Statbotics の公式指標ではありません。
 
+モデル係数は過去試合の時系列検証で調整できます。手順と調整前後の結果は[モデル最適化の記録](docs/model-optimization.md)にまとめています。
+
 ## ローカルで起動
 
 依存パッケージやビルドは不要です。
