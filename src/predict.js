@@ -1,6 +1,9 @@
-import { allianceRows, buildTeamMetrics } from "./epa.js";
+import { allianceRows, buildTeamMetrics, isOfficialMatch } from "./epa.js";
 
 const PRIOR_WEIGHTS = [0.7, 0.3];
+// A different game is played every year, so transfer only part of the
+// historical early-to-late scoring pattern into the new season.
+const PACE_STRENGTH = 0.7;
 // 2024 season ratings predicting 2025 ranking-match winners: scale 2.5 had
 // lower log loss than 2.0, 3.0, or an even 50% baseline (318 decided matches).
 const PROBABILITY_SCALE = 2.5;
@@ -79,14 +82,17 @@ export function buildRatings(roster, currentMatches, history = []) {
   }));
 }
 
-export function scoreContext(matches = [], history = []) {
+export function scoreContext(matches = [], history = [], schedule = matches, pace = historicalPace(history), phaseByMatch = matchPhases(schedule)) {
   const historical = history.map((season) => season ? allianceRows(season.matches || []).map((row) => row.score) : []);
   const weightTotal = historical.reduce((sum, scores, index) => sum + (scores.length ? PRIOR_WEIGHTS[index] || 0 : 0), 0);
   const priorMean = weightTotal ? historical.reduce((sum, scores, index) => sum + (scores.length ? average(scores) * (PRIOR_WEIGHTS[index] || 0) : 0), 0) / weightTotal : null;
   const priorDeviation = weightTotal ? historical.reduce((sum, scores, index) => sum + (scores.length ? deviation(scores) * (PRIOR_WEIGHTS[index] || 0) : 0), 0) / weightTotal : null;
-  const scores = allianceRows(matches).map((row) => row.score);
+  // Remove the expected event-phase effect before estimating this season's
+  // score level. Otherwise low scores from opening matches would be counted
+  // a second time when projecting another early match.
+  const scores = allianceRows(matches).map((row) => row.score / paceFactor(pace, phaseByMatch.get(matchKey(row.match))));
   if (priorMean == null && !scores.length) return null;
-  if (!scores.length) return { mean: priorMean, deviation: Math.max(8, priorDeviation), source: "prior", playedAlliances: 0 };
+  if (!scores.length) return { mean: priorMean, deviation: Math.max(8, priorDeviation), source: "prior", playedAlliances: 0, pace, phaseByMatch };
 
   // A small historical prior gives way as soon as this year's scores arrive.
   const currentMean = 0.4 * average(scores) + 0.6 * average(scores.slice(-24));
@@ -94,7 +100,7 @@ export function scoreContext(matches = [], history = []) {
   const currentWeight = priorMean == null ? 1 : scores.length / (scores.length + 2);
   const mean = (1 - currentWeight) * (priorMean ?? currentMean) + currentWeight * currentMean;
   const spread = (1 - currentWeight) * (priorDeviation ?? currentDeviation) + currentWeight * currentDeviation;
-  return { mean, deviation: Math.max(8, spread), source: "live", playedAlliances: scores.length };
+  return { mean, deviation: Math.max(8, spread), source: "live", playedAlliances: scores.length, pace, phaseByMatch };
 }
 
 export function matchKey(match) {
@@ -104,10 +110,12 @@ export function matchKey(match) {
 export function buildSeasonModel(roster, matches, history = []) {
   const ratings = new Map([...buildRatings(roster, [], history)].map(([key, value]) => [key, { ...value, observedGames: 0 }]));
   const snapshots = new Map();
-  const played = matches.filter((match) => match.played && Number.isFinite(Number(match.redScore)) && Number.isFinite(Number(match.blueScore)))
+  const pace = historicalPace(history);
+  const phaseByMatch = matchPhases(matches);
+  const played = matches.filter((match) => isOfficialMatch(match) && match.played && Number.isFinite(Number(match.redScore)) && Number.isFinite(Number(match.blueScore)))
     .sort((a, b) => matchTime(a) - matchTime(b) || Number(a.id || 0) - Number(b.id || 0));
   const completed = [];
-  let scoring = scoreContext([], history);
+  let scoring = scoreContext([], history, matches, pace, phaseByMatch);
 
   for (let index = 0; index < played.length;) {
     const time = matchTime(played[index]);
@@ -142,7 +150,7 @@ export function buildSeasonModel(roster, matches, history = []) {
       }
     }
     completed.push(...group);
-    scoring = scoreContext(completed, history);
+    scoring = scoreContext(completed, history, matches, pace, phaseByMatch);
   }
 
   const current = buildTeamMetrics(roster, matches);
@@ -164,9 +172,10 @@ export function predictMatch(match, ratings, scoring = null) {
     const rating = ratings.get(Number(p.teamKey));
     return rating?.historical || rating?.observedGames || rating?.modelGames;
   }).length;
+  const phase = scoring ? paceFactor(scoring.pace, scoring.phaseByMatch?.get(matchKey(match))) : 1;
   const projected = scoring ? {
-    red: Math.max(0, Math.round(scoring.mean + (redRating / red.length) * scoring.deviation * 0.65)),
-    blue: Math.max(0, Math.round(scoring.mean + (blueRating / blue.length) * scoring.deviation * 0.65)),
+    red: Math.max(0, Math.round((scoring.mean + (redRating / red.length) * scoring.deviation * 0.65) * phase)),
+    blue: Math.max(0, Math.round((scoring.mean + (blueRating / blue.length) * scoring.deviation * 0.65) * phase)),
   } : null;
   return { red, blue, redProbability, covered, totalTeams: participants.length, projected };
 }
@@ -185,6 +194,50 @@ function average(values) {
 function deviation(values) {
   const mean = average(values);
   return values.length ? Math.sqrt(average(values.map((value) => (value - mean) ** 2))) : 0;
+}
+
+function historicalPace(history) {
+  const seasons = history.map((season, index) => {
+    const matches = rankingSchedule(season?.matches || [])
+      .filter((match) => match.played && Number.isFinite(Number(match.redScore)) && Number.isFinite(Number(match.blueScore)))
+      .sort(compareMatches);
+    if (matches.length < 8) return null;
+    const scores = matches.map((match) => (Number(match.redScore) + Number(match.blueScore)) / 2);
+    const seasonMean = average(scores);
+    if (seasonMean <= 0) return null;
+    const bins = [0, 1, 2, 3].map((bin) => {
+      const slice = scores.slice(Math.floor(bin * scores.length / 4), Math.floor((bin + 1) * scores.length / 4));
+      return average(slice) / seasonMean;
+    });
+    return { bins, weight: PRIOR_WEIGHTS[index] || 0 };
+  }).filter(Boolean);
+  const totalWeight = seasons.reduce((sum, season) => sum + season.weight, 0);
+  if (!totalWeight) return null;
+  return [0, 1, 2, 3].map((bin) => 1 + PACE_STRENGTH * (seasons.reduce((sum, season) => sum + season.bins[bin] * season.weight, 0) / totalWeight - 1));
+}
+
+function matchPhases(matches) {
+  const ordered = rankingSchedule(matches).sort(compareMatches);
+  return new Map(ordered.map((match, index) => [matchKey(match), (index + 0.5) / ordered.length]));
+}
+
+function rankingSchedule(matches) {
+  return matches.filter((match) => isOfficialMatch(match) && (/qualification|ranking/i.test(String(match.name || "")) || String(match.tournamentKey || "").toLowerCase() === "t2"));
+}
+
+function paceFactor(pace, phase = 0.5) {
+  if (!pace) return 1;
+  const position = clamp(phase, 0.125, 0.875) * 4 - 0.5;
+  const left = Math.min(3, Math.floor(position));
+  const right = Math.min(3, left + 1);
+  return pace[left] + (pace[right] - pace[left]) * (position - left);
+}
+
+function compareMatches(a, b) {
+  const aTime = Date.parse(a.scheduledTime);
+  const bTime = Date.parse(b.scheduledTime);
+  return (Number.isFinite(aTime) ? aTime : Infinity) - (Number.isFinite(bTime) ? bTime : Infinity)
+    || Number(a.id || 0) - Number(b.id || 0);
 }
 
 function matchTime(match) {

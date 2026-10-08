@@ -1,13 +1,16 @@
 const DEFAULT_LAMBDA = 6;
 
+export function isOfficialMatch(match) {
+  return !/\b(?:test|practice)\b/i.test(String(match?.name || "")) && String(match?.tournamentKey || "").toLowerCase() !== "t99";
+}
+
 export function qualificationMatches(matches = []) {
-  const played = matches.filter((m) => m?.played && Number.isFinite(Number(m.redScore)) && Number.isFinite(Number(m.blueScore)));
-  const quals = played.filter((m) => {
+  return matches.filter((m) => {
     const name = String(m.name || "");
     const key = String(m.tournamentKey ?? "").toLowerCase();
-    return /qualification|ranking/i.test(name) || key === "1" || key === "t1";
+    return isOfficialMatch(m) && m.played && Number.isFinite(Number(m.redScore)) && Number.isFinite(Number(m.blueScore))
+      && (/qualification|ranking/i.test(name) || key === "t2");
   });
-  return quals.length ? quals : played;
 }
 
 export function allianceRows(matches = [], scoreForSide = (match, side) => Number(match[`${side}Score`])) {

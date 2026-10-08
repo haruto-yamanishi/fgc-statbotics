@@ -1,4 +1,5 @@
 import { fetchSeason } from "./api.js";
+import { isOfficialMatch } from "./epa.js";
 import { buildRoster, buildSeasonModel, matchKey, predictMatch, teamCode, teamNameJa as displayName } from "./predict.js";
 
 const DEFAULT_TEAM = "JPN";
@@ -32,7 +33,7 @@ const state = {
 
 const ids = [
   "year-select", "event-state", "last-updated", "refresh-button", "data-note", "error-box",
-  "team-search", "team-select", "selected-team-title", "team-summary", "prediction-source",
+  "team-search", "team-search-status", "team-select", "selected-team-title", "team-summary", "prediction-source",
   "featured-prediction", "schedule-count", "show-team", "show-all", "match-search",
   "prediction-list", "show-more", "results-count", "show-results-team", "show-results-all",
   "result-list", "results-more", "leader-search", "sort-select", "leaderboard-body",
@@ -49,7 +50,8 @@ el["year-select"].addEventListener("change", () => {
   loadSeason();
 });
 el["refresh-button"].addEventListener("click", loadSeason);
-el["team-search"].addEventListener("input", updateTeamPicker);
+el["team-search"].addEventListener("input", (event) => searchTeams(!event.isComposing));
+el["team-search"].addEventListener("compositionend", () => searchTeams(true));
 el["team-select"].addEventListener("change", () => selectTeam(Number(el["team-select"].value)));
 el["show-team"].addEventListener("click", () => setScheduleView("team"));
 el["show-all"].addEventListener("click", () => setScheduleView("all"));
@@ -101,7 +103,8 @@ async function loadSeason() {
   setError("");
 
   try {
-    const data = await fetchSeason(state.year, controller.signal, state.year === 2026);
+    const fetched = await fetchSeason(state.year, controller.signal, state.year === 2026);
+    const data = { ...fetched, matches: fetched.matches.filter(isOfficialMatch) };
     const history = await getHistory(state.year);
     if (controller.signal.aborted) return;
     state.data = data;
@@ -143,12 +146,12 @@ function reconcileSelection() {
 function renderAll() {
   const notes = [];
   if (!state.data.rankings.length) notes.push("公式順位はまだ未発表です。参加国は対戦表から表示しています。");
-  if (state.scoring?.source === "prior") notes.push("予測得点は過去年の得点水準を使った暫定値です。今年の結果が公開されると自動で補正します。");
+  if (state.scoring?.source === "prior") notes.push("予測得点は過去年の得点水準と大会中の伸び方を使った暫定値です。今年の結果が公開されると自動で補正します。");
   el["data-note"].hidden = !notes.length;
   el["data-note"].textContent = notes.join(" ");
   el["prediction-source"].textContent = state.scoring?.source === "live"
     ? `ランキング戦 ${Math.floor(state.scoring.playedAlliances / 2)} 試合の実測を反映`
-    : state.historyYears ? `過去${state.historyYears}年の得点水準・暫定` : "得点実績不足";
+    : state.historyYears ? `過去${state.historyYears}年の得点水準・進行度を反映` : "得点実績不足";
   updateTeamPicker();
   renderTeam();
   renderFeatured();
@@ -157,11 +160,11 @@ function renderAll() {
   renderLeaderboard();
 }
 
-function selectTeam(teamKey) {
+function selectTeam(teamKey, keepSearch = false) {
   if (!state.roster.some((team) => Number(team.teamKey) === teamKey)) return;
   state.selectedTeamKey = teamKey;
   state.selectedCode = teamCode(selectedTeam());
-  el["team-search"].value = "";
+  if (!keepSearch) el["team-search"].value = "";
   updateTeamPicker();
   state.visibleMatches = 12;
   state.visibleResults = 10;
@@ -189,16 +192,28 @@ function setResultView(view) {
   renderResults();
 }
 
+function searchTeams(selectFirst) {
+  const teams = updateTeamPicker();
+  if (selectFirst && teams.length) selectTeam(Number(teams[0].teamKey), true);
+}
+
 function updateTeamPicker() {
-  if (!state.data) return;
+  if (!state.data) return [];
   const query = el["team-search"].value.trim().toLocaleLowerCase("ja");
   const teams = state.roster
     .filter((team) => searchText(team).includes(query))
     .sort((a, b) => displayName(a).localeCompare(displayName(b), "ja"));
-  el["team-select"].innerHTML = teams.map((team) => `<option value="${Number(team.teamKey)}">${escapeHtml(teamCode(team))} · ${escapeHtml(displayName(team))}</option>`).join("");
+  el["team-select"].innerHTML = teams.length
+    ? teams.map((team) => `<option value="${Number(team.teamKey)}">${escapeHtml(teamCode(team))} · ${escapeHtml(displayName(team))}</option>`).join("")
+    : '<option value="">該当する国がありません</option>';
+  el["team-select"].disabled = !teams.length;
+  el["team-search-status"].textContent = query
+    ? teams.length ? `${teams.length} 件の候補 · 最初の国を表示` : "該当する国がありません"
+    : `${teams.length} チームから選択できます`;
   if (teams.some((team) => Number(team.teamKey) === state.selectedTeamKey)) {
     el["team-select"].value = String(state.selectedTeamKey);
   }
+  return teams;
 }
 
 function renderTeam() {
@@ -235,8 +250,8 @@ function renderFeatured() {
   const redPct = Math.round(prediction.redProbability * 100);
   const bluePct = 100 - redPct;
   const scoreText = state.scoring?.source === "live"
-    ? "今年の得点水準と直近の試合結果を反映"
-    : "初戦前の得点は過去年のスケールによる暫定値";
+    ? "今年の得点水準・直近の結果・大会進行度を反映"
+    : "初戦前の得点は過去年の水準と大会進行度による暫定値";
   el["featured-prediction"].innerHTML = `<article class="featured">
     <div class="featured-top"><strong>次の試合 · ${escapeHtml(matchLabel(next))}</strong><span class="match-meta">${escapeHtml(matchTime(next))} · フィールド ${escapeHtml(String(next.field || "—"))}</span></div>
     <div class="featured-body">

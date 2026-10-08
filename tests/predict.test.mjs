@@ -57,6 +57,26 @@ test("今年の得点が出た直後から得点水準を更新する", () => {
   assert.equal(updated.playedAlliances, 2);
 });
 
+test("過去大会の前半から終盤への得点増を予定試合に適用し、今年の序盤実績は二重補正しない", () => {
+  const red = [participant(1, "JPN")];
+  const blue = [participant(2, "CRC")];
+  const schedule = Array.from({ length: 8 }, (_, index) => ({
+    ...match(red, blue, 0, 0, false), id: index + 1,
+    scheduledTime: `2026-10-08T${String(index + 10).padStart(2, "0")}:00:00Z`,
+  }));
+  const rising = { matches: schedule.map((game, index) => ({ ...game, played: true, redScore: 30 + index * 10, blueScore: 30 + index * 10 })) };
+  const flat = { matches: schedule.map((game) => ({ ...game, played: true, redScore: 65, blueScore: 65 })) };
+  const ratings = new Map([[1, { rating: 0 }], [2, { rating: 0 }]]);
+  const initial = scoreContext([], [rising], schedule);
+  assert.ok(predictMatch(schedule[7], ratings, initial).projected.red > predictMatch(schedule[0], ratings, initial).projected.red);
+
+  const firstPlayed = { ...schedule[0], played: true, redScore: 40, blueScore: 40 };
+  const risingUpdated = scoreContext([firstPlayed], [rising], schedule);
+  const flatUpdated = scoreContext([firstPlayed], [flat], schedule);
+  assert.ok(risingUpdated.mean > flatUpdated.mean);
+  assert.equal(risingUpdated.playedAlliances, 2);
+});
+
 test("過去試合の予測にはその試合と後の結果を混ぜない", () => {
   const first = { ...match([participant(88, "JPN")], [participant(42, "CRC")], 100, 20), id: 1, scheduledTime: "2026-10-08T10:00:00Z" };
   const second = { ...match([participant(88, "JPN")], [participant(42, "CRC")], 40, 80), id: 2, scheduledTime: "2026-10-08T11:00:00Z" };
@@ -81,4 +101,14 @@ test("同時刻の試合結果は互いの試合前予測に使わない", () =>
   const original = buildSeasonModel(roster, [first, second]);
   const changed = buildSeasonModel(roster, [{ ...first, redScore: 1000 }, second]);
   assert.deepEqual(original.snapshots.get(matchKey(second)), changed.snapshots.get(matchKey(second)));
+});
+
+test("公式集計前のテスト試合は今年の得点水準と試合前予測に入れない", () => {
+  const testMatch = { ...match([participant(1, "JPN")], [participant(2, "CRC")], 131, 97), id: 3, name: "Test Match 3", tournamentKey: "t99" };
+  const ranking = { ...match([participant(1, "JPN")], [participant(2, "CRC")], 0, 0, false), id: 1 };
+  const roster = buildRoster([], [testMatch, ranking]);
+  const model = buildSeasonModel(roster, [testMatch, ranking]);
+  assert.equal(model.scoring, null);
+  assert.equal(model.snapshots.size, 0);
+  assert.equal(model.ratings.get(1).epa, null);
 });

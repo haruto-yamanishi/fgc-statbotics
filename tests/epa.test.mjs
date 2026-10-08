@@ -16,6 +16,7 @@ test("qualification filter prefers ranking matches", () => {
     { played: true, name: "Final Match 1", tournamentKey: "3", redScore: 20, blueScore: 18 },
   ];
   assert.equal(qualificationMatches(matches).length, 1);
+  assert.equal(qualificationMatches([{ played: true, name: "Test Match 3", tournamentKey: "t99", redScore: 131, blueScore: 97 }]).length, 0);
 });
 
 test("EPA ranks a repeatedly stronger team higher", () => {
