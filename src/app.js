@@ -1,7 +1,7 @@
-import { fetchSeason } from "./api.js";
+import { fetchSeason } from "./api.js?v=20261008-3";
 import { isOfficialMatch } from "./epa.js";
-import { getLocaleTag, localeTags, resolveLocale, setLocale, t, translateStatic } from "./i18n.js?v=20261008-2";
-import { buildRoster, buildSeasonModel, matchKey, predictMatch, teamCode, teamName } from "./predict.js";
+import { getLocaleTag, localeTags, resolveLocale, setLocale, t, translateStatic } from "./i18n.js?v=20261008-3";
+import { buildRoster, buildSeasonModel, matchKey, predictMatch, teamCode, teamName } from "./predict.js?v=20261008-3";
 import { completedRankingScores, countedRankingParticipant, isRankingMatch, projectedFinalRankingScores, projectedRankingPositions, rankingScore } from "./ranking-score.js";
 import { allianceOutcome, projectedOutcome, rankMovement, teamRecord, teamSide } from "./standings.js";
 
@@ -40,7 +40,7 @@ const state = {
   resultView: "team",
   visibleResults: 10,
   leaderQuery: "",
-  sort: "prediction",
+  sort: "projectedFinal",
   userSorted: false,
   historyYears: 0,
 };
@@ -162,7 +162,7 @@ async function loadSeason() {
       el["sort-select"].value = state.sort;
     }
     if (!state.userSorted) {
-      state.sort = [...state.ratings.values()].some((rating) => rating.modelGames) ? "epa" : "prediction";
+      state.sort = state.year === 2026 ? "projectedFinal" : "epa";
       el["sort-select"].value = state.sort;
     }
     reconcileSelection();
@@ -420,13 +420,10 @@ function renderLeaderboard() {
   el["sort-projected-final"].disabled = !showProjectedFinal;
   el["current-ranking-header"].hidden = !showProjectedFinal;
   el["projected-final-header"].hidden = !showProjectedFinal;
-  const rated = [...state.roster].sort((a, b) => (state.ratings.get(Number(b.teamKey))?.rating || 0) - (state.ratings.get(Number(a.teamKey))?.rating || 0));
-  const predictionRanks = new Map(rated.map((team, index) => [Number(team.teamKey), index + 1]));
   const rows = state.roster
     .filter((team) => searchText(team).includes(state.leaderQuery))
     .map((team) => ({ team, metric: state.ratings.get(Number(team.teamKey)) || {} }));
   const compare = {
-    prediction: (a, b) => (b.metric.rating || 0) - (a.metric.rating || 0),
     official: (a, b) => nullableRank(a.team.rank) - nullableRank(b.team.rank),
     epa: (a, b) => nullableValue(b.metric.epa) - nullableValue(a.metric.epa),
     main: (a, b) => nullableValue(b.metric.mainEpa) - nullableValue(a.metric.mainEpa),
@@ -435,10 +432,9 @@ function renderLeaderboard() {
     projectedFinal: (a, b) => nullableValue(state.projectedFinalRanks.get(Number(b.team.teamKey))) - nullableValue(state.projectedFinalRanks.get(Number(a.team.teamKey))),
     previous: (a, b) => nullableRank(a.metric.previousRank) - nullableRank(b.metric.previousRank),
   };
-  rows.sort((a, b) => (compare[state.sort] || compare.prediction)(a, b) || displayName(a.team).localeCompare(displayName(b.team), getLocaleTag()));
+  rows.sort((a, b) => (compare[state.sort] || compare.epa)(a, b) || displayName(a.team).localeCompare(displayName(b.team), getLocaleTag()));
   el["leaderboard-body"].innerHTML = rows.map(({ team, metric }, index) => {
     const key = Number(team.teamKey);
-    const validPrediction = metric.historical || metric.modelGames;
     const projectedScore = state.projectedFinalRanks.get(key);
     return `<tr data-team-key="${key}" class="${key === state.selectedTeamKey ? "selected" : ""}" tabindex="0" aria-label="${escapeHtml(t("selectTeamAria", { name: displayName(team) }))}">
       <td>#${formatNumber(index + 1)}</td>
@@ -451,7 +447,6 @@ function renderLeaderboard() {
       <td>${team.rank == null ? "—" : `#${formatNumber(team.rank)}`}</td>
       ${showProjectedFinal ? `<td>${formatDecimal(state.currentRankingScores.get(key))}</td><td>${formatDecimal(projectedScore)}</td>` : ""}
       <td>${rankMovementBadge(rankMovement(team.rank, metric.previousRank)) || "—"}</td>
-      <td>${validPrediction ? `#${predictionRanks.get(key)} · ${signed(metric.rating)}` : "—"}</td>
     </tr>`;
   }).join("");
   el["leaderboard-body"].querySelectorAll("tr[data-team-key]").forEach((row) => {
@@ -527,9 +522,6 @@ function formatNumber(value) {
 }
 function formatDecimal(value) {
   return value == null || !Number.isFinite(Number(value)) ? "—" : new Intl.NumberFormat(getLocaleTag(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Number(value));
-}
-function signed(value) {
-  return Number.isFinite(value) ? new Intl.NumberFormat(getLocaleTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: "exceptZero" }).format(value) : "—";
 }
 function nullableRank(value) { return value == null || !Number.isFinite(Number(value)) ? Infinity : Number(value); }
 function nullableValue(value) { return value == null || !Number.isFinite(Number(value)) ? -Infinity : Number(value); }
