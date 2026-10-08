@@ -113,15 +113,17 @@ let seed=20261008;const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;
 const options={epa:[0,.25,.5,1,2],rank:[0,.25,.5,1,2],win:[0,.25,.5,1,2],score:[0,.25,.5,1,2],recent:[0,.3,.7,1,1.5],older:[0,.2,.5,1,1.5],oldest:[0,.1,.3,.7,1],temperature:[.5,.75,1,1.25,1.75,2.5,3],blend:[.25,.5,.75,1],merge:["linear","logit"]};
 const keys=Object.keys(options),pick=a=>a[Math.floor(rand()*a.length)];
 const candidates=[];
+let leaders=[];
 const rank=x=>.55*x.test2025.logLoss+.45*x.train2024.logLoss+.09*(1-x.test2025.accuracy);
 for(let i=0;i<18000;i++){
- let cfg=i<10000?{...baseCfg}:{...(candidates.slice().sort((a,b)=>a.cost-b.cost)[Math.floor(rand()*Math.min(15,candidates.length))]?.cfg||baseCfg)};
+ let cfg=i<10000?{...baseCfg}:{...(leaders[Math.floor(rand()*leaders.length)]?.cfg||baseCfg)};
  const alters=i<10000?Math.floor(rand()*11)+1:Math.floor(rand()*4)+1;
  for(let z=0;z<alters;z++){const k=pick(keys);cfg[k]=pick(options[k]);}
  if(fields.every(f=>cfg[f]===0)||[cfg.recent,cfg.older,cfg.oldest].every(x=>x===0))continue;
  const train2024=evalSeason(2024,cfg),test2025=evalSeason(2025,cfg);
  const x={cfg,train2024,test2025};
  x.cost=rank(x);candidates.push(x);
+ if(i%200===0)leaders=candidates.slice().sort((a,b)=>a.cost-b.cost).slice(0,15);
 }
 candidates.sort((a,b)=>a.cost-b.cost);
 const contenders=candidates.slice(0,100).map(x=>({...x,holdout2026:evalSeason(2026,x.cfg)}));
