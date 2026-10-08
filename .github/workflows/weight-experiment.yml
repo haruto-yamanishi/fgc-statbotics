@@ -1,0 +1,17 @@
+name: Temporary FGC 2026 weight experiment
+on:
+  push:
+    branches: [experiment/fgc-2026-live-weight]
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+      - run: node scripts/compare-live-weights.mjs
