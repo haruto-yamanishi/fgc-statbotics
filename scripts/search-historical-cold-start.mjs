@@ -3,7 +3,7 @@
 import {buildRoster,buildSeasonModel,matchKey,teamCode} from "../src/predict.js";
 import {buildTeamMetrics,qualificationMatches,allianceRows} from "../src/epa.js";
 
-const years=new Map(await Promise.all([2022,2023,2024,2025,2026].map(async y=>{
+const years=new Map(await Promise.all([2019,2022,2023,2024,2025,2026].map(async y=>{
  const r=await fetch("https://api.first.global/v1?year="+y+"&excludeMatchDetails=true",{signal:AbortSignal.timeout(60000)});
  if(!r.ok)throw Error("HTTP "+y+" "+r.status);
  return [y,await r.json()];
@@ -47,7 +47,7 @@ function stats(year){
  })()])));
  return {roster,matches,features};
 }
-const seasons=new Map([2023,2024,2025,2026].map(y=>[y,stats(y)]));
+const seasons=new Map([2019,2022,2023,2024,2025,2026].map(y=>[y,stats(y)]));
 const stableTime=m=>Number.isFinite(Date.parse(m.scheduledTime))?Date.parse(m.scheduledTime):Number(m.id||0);
 const data=new Map([2024,2025,2026].map(y=>{
  const d=years.get(y),s=seasons.get(y);
@@ -67,7 +67,8 @@ const sig=x=>1/(1+Math.exp(-Math.max(-20,Math.min(20,x))));
 const logit=p=>Math.log(Math.max(.00001,Math.min(.99999,p))/(1-Math.max(.00001,Math.min(.99999,p))));
 function evalSeason(y,c) {
  const games=data.get(y);
- const historical=[y-1,y-2,y-3].map(z=>seasons.get(z)?.features||null);
+ const pastYears=y===2024?[2023,2022,2019]:y===2025?[2024,2023,2022]:[2025,2024,2023];
+ const historical=pastYears.map(z=>seasons.get(z)?.features||null);
  const ratings=new Map();
  const countrySet=new Set(games.flatMap(g=>[...g.r,...g.b]));
  for(const code of countrySet){
@@ -128,7 +129,7 @@ for(let i=0;i<18000;i++){
 candidates.sort((a,b)=>a.cost-b.cost);
 const contenders=candidates.slice(0,100).map(x=>({...x,holdout2026:evalSeason(2026,x.cfg)}));
 const top2026=candidates.map(x=>({...x,holdout2026:evalSeason(2026,x.cfg)})).sort((a,b)=>b.holdout2026.correct-a.holdout2026.correct||a.holdout2026.logLoss-b.holdout2026.logLoss);
-console.log("FGC_COLD_START "+JSON.stringify({
+console.log("FGC_COLD_START_WITH_OLD_RANKS "+JSON.stringify({
  searched:candidates.length,baseline,
  selectedByPast:contenders.slice(0,10),
  bestOn2026DiagnosticOnly:top2026.slice(0,8),
