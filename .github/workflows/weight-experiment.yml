@@ -15,4 +15,4 @@ jobs:
           node-version: '22'
       - run: npm test
       - run: node scripts/compare-live-weights.mjs
-      - run: node scripts/hybrid-elo-backtest.mjs
+      - run: node scripts/inspect-2026-details.mjs
