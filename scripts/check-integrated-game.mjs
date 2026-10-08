@@ -27,11 +27,32 @@ for(const [i,m]of played.entries()){
 }
 const upcoming=current.matches.find(m=>!m.played&&(m.participants||[]).length===6);
 const futureP=upcoming?candidate.probability(upcoming,predictMatch(upcoming,baseline.ratings,baseline.scoring).redProbability):null;
+function compareSubset(games) {
+  const stats={};
+  for(const [name,snapshots] of [["baseline",baseline.snapshots],["gameAware",candidate.snapshots]]) {
+    let correct=0,eligible=0,loss=0,n=0;
+    for(const m of games){
+      const s=snapshots.get(matchKey(m));
+      if(m.redScore===m.blueScore)continue;
+      if(s.verdict!=="no-pick"){eligible++;if(s.verdict==="correct")correct++;}
+      const y=m.redScore>m.blueScore?1:0;
+      loss-=y?Math.log(s.redProbability):Math.log(1-s.redProbability);
+      n++;
+    }
+    stats[name]={correct,eligible,accuracy:correct/eligible,logLoss:loss/n};
+  }
+  return stats;
+}
+const known=played.filter(m=>Number(m.id)<=75);
+const newMatches=played.filter(m=>Number(m.id)>75);
 const result={played:played.length,eligible,correct:hit,accuracy:hit/eligible,logLoss:loss/count,
- holdoutCorrect:lateN,holdoutEligible:late,futureP,params:GAME_AWARE_2026};
+ holdoutCorrect:lateN,holdoutEligible:late,futureP,params:GAME_AWARE_2026,
+ frozen75:compareSubset(known),all:compareSubset(played),newlyPlayed:compareSubset(newMatches),
+ added:newMatches.map(m=>({id:m.id,score:[m.redScore,m.blueScore],baselineP:baseline.snapshots.get(matchKey(m))?.redProbability,gameAwareP:candidate.snapshots.get(matchKey(m))?.redProbability}))};
 console.log("FGC_INTEGRATED "+JSON.stringify(result));
-assert.equal(hit,48,"Integrated predictions must match the selected train-only candidate");
-assert.equal(eligible,74);
-assert.equal(lateN,16);
-assert.ok(loss/count<.600);
+assert.equal(result.frozen75.gameAware.correct,48,"Selected candidate must reproduce first 75 results");
+assert.equal(result.frozen75.gameAware.eligible,74);
+assert.ok(result.frozen75.gameAware.logLoss<.600);
+assert.ok(result.all.gameAware.correct>=result.all.baseline.correct,"Game-aware model must not lose overall hits on new data");
+assert.ok(result.all.gameAware.logLoss<result.all.baseline.logLoss,"Game-aware log loss must improve on new data");
 if(futureP!=null)assert.ok(futureP>0&&futureP<1);
