@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { computeEpa, qualificationMatches, solveLinearSystem } from "../src/epa.js";
+import { buildTeamMetrics, computeEpa, matchComponents, qualificationMatches, solveLinearSystem } from "../src/epa.js";
 
 test("linear solver solves a small system", () => {
   const m = [new Float64Array([2, 1]), new Float64Array([1, 3])];
@@ -30,4 +30,34 @@ test("EPA ranks a repeatedly stronger team higher", () => {
   assert.ok(epa.get(1).epa > epa.get(2).epa);
   assert.ok(epa.get(1).epa > epa.get(3).epa);
   assert.ok(epa.get(1).epa > epa.get(4).epa);
+});
+
+test("2026 の公式得点を本体と終盤に分け、EPA が合計と一致する", () => {
+  const rankings = [1, 2, 3, 4, 5, 6].map((teamKey) => ({ teamKey }));
+  const match = {
+    played: true, name: "Ranking Match 1", redScore: 200, blueScore: 100,
+    participants: [1, 2, 3].map((teamKey, i) => ({ teamKey, station: 11 + i }))
+      .concat([4, 5, 6].map((teamKey, i) => ({ teamKey, station: 21 + i }))),
+    details: {
+      wildfireInRedSuppressionUnit: 100, wildfireInBlueSuppressionUnit: 50,
+      redClimbMultiplier: 1.5, blueClimbMultiplier: 1.2,
+      redPartnerClimbPoints: 25, bluePartnerClimbPoints: 0, coopertition: 10,
+    },
+  };
+  assert.deepEqual(matchComponents(match, "red"), { body: 115, endgame: 85 });
+  assert.deepEqual(matchComponents(match, "blue"), { body: 80, endgame: 20 });
+  const metrics = buildTeamMetrics(rankings, [match]);
+  assert.ok(Math.abs(metrics.get(1).epa - metrics.get(1).mainEpa - metrics.get(1).endgameEpa) < 1e-8);
+  assert.equal(metrics.get(1).modelGames, 1);
+  assert.equal(metrics.get(1).epaRank, 1);
+  assert.equal(metrics.get(4).mainEpaRank > 3, true);
+});
+
+test("未出場チームには今年の EPA 順位を付けない", () => {
+  const rankings = [1, 2, 3].map((teamKey) => ({ teamKey }));
+  const played = { played: true, name: "Ranking Match 1", redScore: 50, blueScore: 20,
+    participants: [{ teamKey: 1, station: 11 }, { teamKey: 2, station: 21 }] };
+  const metrics = buildTeamMetrics(rankings, [played]);
+  assert.equal(metrics.get(3).epa, null);
+  assert.equal(metrics.get(3).epaRank, undefined);
 });

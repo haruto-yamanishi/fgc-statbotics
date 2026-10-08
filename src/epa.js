@@ -10,25 +10,46 @@ export function qualificationMatches(matches = []) {
   return quals.length ? quals : played;
 }
 
-export function allianceRows(matches = []) {
+export function allianceRows(matches = [], scoreForSide = (match, side) => Number(match[`${side}Score`])) {
   const rows = [];
   for (const match of qualificationMatches(matches)) {
     const participants = Array.isArray(match.participants) ? match.participants : [];
     const red = participants.filter((p) => Number(p.station) < 20 && !isInactive(p)).map((p) => Number(p.teamKey));
     const blue = participants.filter((p) => Number(p.station) > 20 && !isInactive(p)).map((p) => Number(p.teamKey));
-    if (red.length) rows.push({ teamKeys: red, score: Number(match.redScore), match });
-    if (blue.length) rows.push({ teamKeys: blue, score: Number(match.blueScore), match });
+    const redScore = scoreForSide(match, "red");
+    const blueScore = scoreForSide(match, "blue");
+    if (red.length && Number.isFinite(redScore)) rows.push({ teamKeys: red, score: redScore, match });
+    if (blue.length && Number.isFinite(blueScore)) rows.push({ teamKeys: blue, score: blueScore, match });
   }
   return rows.filter((r) => r.teamKeys.every(Number.isFinite));
+}
+
+export function matchComponents(match, side) {
+  if (!match?.played || !match.details || !["red", "blue"].includes(side)) return null;
+  const details = match.details;
+  const title = side === "red" ? "Red" : "Blue";
+  const suppression = details[`wildfireIn${title}SuppressionUnit`];
+  const multiplier = details[`${side}ClimbMultiplier`];
+  const partner = details[`${side}PartnerClimbPoints`];
+  const coopertition = details.coopertition;
+  const total = match[`${side}Score`];
+  if ([suppression, multiplier, partner, coopertition, total].some((value) => value == null || !Number.isFinite(Number(value)))) return null;
+  const bonus = Number(coopertition);
+  if (![0, 10, 25, 40].includes(bonus)) return null;
+  const factor = Number(multiplier) >= 1 ? Number(multiplier) : 1 + Number(multiplier);
+  const endgame = Math.ceil(Number(suppression) * factor - 1e-9) - Number(suppression) + Number(partner) + bonus;
+  const body = Number(total) - endgame;
+  if (endgame < 0 || body < 0) return null;
+  return { body, endgame };
 }
 
 function isInactive(participant) {
   return Number(participant?.cardStatus) === 2 || Number(participant?.noShow) === 1;
 }
 
-export function computeEpa(rankings = [], matches = [], lambda = DEFAULT_LAMBDA) {
+export function computeEpa(rankings = [], matches = [], lambda = DEFAULT_LAMBDA, scoreForSide) {
   const teamKeys = [...new Set(rankings.map((r) => Number(r.teamKey)).filter(Number.isFinite))];
-  const rows = allianceRows(matches).filter((r) => r.teamKeys.every((key) => teamKeys.includes(key)));
+  const rows = allianceRows(matches, scoreForSide).filter((r) => r.teamKeys.every((key) => teamKeys.includes(key)));
   const index = new Map(teamKeys.map((key, i) => [key, i]));
   const n = teamKeys.length;
   const games = new Array(n).fill(0);
@@ -85,12 +106,19 @@ export function computeRecentForm(teamKey, matches, epaByTeam, count = 3) {
 
 export function buildTeamMetrics(rankings, matches, lambda = DEFAULT_LAMBDA) {
   const epaByTeam = computeEpa(rankings, matches, lambda);
+  const hasComponents = matches.some((match) => match.played && match.details?.wildfireInRedSuppressionUnit != null);
+  const mainByTeam = hasComponents ? computeEpa(rankings, matches, lambda, (match, side) => matchComponents(match, side)?.body) : null;
+  const endgameByTeam = hasComponents ? computeEpa(rankings, matches, lambda, (match, side) => matchComponents(match, side)?.endgame) : null;
   const metrics = rankings.map((ranking) => {
     const teamKey = Number(ranking.teamKey);
     const model = epaByTeam.get(teamKey) ?? { epa: null, games: 0, confidence: 0 };
+    const main = mainByTeam?.get(teamKey);
+    const endgame = endgameByTeam?.get(teamKey);
     return {
       teamKey,
-      epa: model.epa,
+      epa: model.games ? model.epa : null,
+      mainEpa: main?.games ? main.epa : null,
+      endgameEpa: endgame?.games ? endgame.epa : null,
       modelGames: model.games,
       confidence: model.confidence,
       form: computeRecentForm(teamKey, matches, epaByTeam),
@@ -102,6 +130,11 @@ export function buildTeamMetrics(rankings, matches, lambda = DEFAULT_LAMBDA) {
     metric.epaRank = i + 1;
     metric.epaPercentile = ranked.length <= 1 ? 100 : 100 * (1 - i / (ranked.length - 1));
   });
+  for (const [field, rankField] of [["mainEpa", "mainEpaRank"], ["endgameEpa", "endgameEpaRank"]]) {
+    metrics.filter((metric) => Number.isFinite(metric[field]))
+      .sort((a, b) => b[field] - a[field])
+      .forEach((metric, index) => { metric[rankField] = index + 1; });
+  }
 
   return new Map(metrics.map((m) => [m.teamKey, m]));
 }

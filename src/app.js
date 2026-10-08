@@ -1,5 +1,5 @@
 import { fetchSeason } from "./api.js";
-import { buildRoster, buildRatings, predictMatch, scoreContext, teamCode, teamNameJa as displayName } from "./predict.js";
+import { buildRoster, buildSeasonModel, matchKey, predictMatch, teamCode, teamNameJa as displayName } from "./predict.js";
 
 const DEFAULT_TEAM = "JPN";
 const AUTO_REFRESH_MS = 60_000;
@@ -7,13 +7,14 @@ const dateFormat = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", mo
 const timeFormat = new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 const numberFormat = new Intl.NumberFormat("ja-JP");
 
-let historyPromise;
+const historyPromises = new Map();
 const state = {
   year: 2026,
   data: null,
   roster: [],
   ratings: new Map(),
   scoring: null,
+  snapshots: new Map(),
   selectedTeamKey: null,
   selectedCode: DEFAULT_TEAM,
   loading: false,
@@ -21,8 +22,11 @@ const state = {
   scheduleView: "team",
   matchQuery: "",
   visibleMatches: 12,
+  resultView: "team",
+  visibleResults: 10,
   leaderQuery: "",
   sort: "prediction",
+  userSorted: false,
   historyYears: 0,
 };
 
@@ -30,13 +34,18 @@ const ids = [
   "year-select", "event-state", "last-updated", "refresh-button", "data-note", "error-box",
   "team-search", "team-select", "selected-team-title", "team-summary", "prediction-source",
   "featured-prediction", "schedule-count", "show-team", "show-all", "match-search",
-  "prediction-list", "show-more", "past-list", "leader-search", "sort-select", "leaderboard-body",
+  "prediction-list", "show-more", "results-count", "show-results-team", "show-results-all",
+  "result-list", "results-more", "leader-search", "sort-select", "leaderboard-body",
 ];
 const el = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
 
 el["year-select"].addEventListener("change", () => {
   state.year = Number(el["year-select"].value);
   state.visibleMatches = 12;
+  state.visibleResults = 10;
+  const url = new URL(location.href);
+  url.searchParams.set("year", String(state.year));
+  history.replaceState(null, "", url);
   loadSeason();
 });
 el["refresh-button"].addEventListener("click", loadSeason);
@@ -53,25 +62,33 @@ el["show-more"].addEventListener("click", () => {
   state.visibleMatches += 24;
   renderSchedule();
 });
+el["show-results-team"].addEventListener("click", () => setResultView("team"));
+el["show-results-all"].addEventListener("click", () => setResultView("all"));
+el["results-more"].addEventListener("click", () => {
+  state.visibleResults += 25;
+  renderResults();
+});
 el["leader-search"].addEventListener("input", () => {
   state.leaderQuery = el["leader-search"].value.trim().toLocaleLowerCase("ja");
   renderLeaderboard();
 });
 el["sort-select"].addEventListener("change", () => {
   state.sort = el["sort-select"].value;
+  state.userSorted = true;
   renderLeaderboard();
 });
 
-function getHistory() {
-  if (!historyPromise) {
-    historyPromise = Promise.allSettled([fetchSeason(2025), fetchSeason(2024)])
+function getHistory(year) {
+  if (!historyPromises.has(year)) {
+    const pending = Promise.allSettled([fetchSeason(year - 1), fetchSeason(year - 2)])
       .then((results) => {
         const seasons = results.map((result) => result.status === "fulfilled" ? result.value : null);
-        if (seasons.some((season) => !season)) historyPromise = null;
+        if (seasons.some((season) => !season)) historyPromises.delete(year);
         return seasons;
       });
+    historyPromises.set(year, pending);
   }
-  return historyPromise;
+  return historyPromises.get(year);
 }
 
 async function loadSeason() {
@@ -84,14 +101,20 @@ async function loadSeason() {
   setError("");
 
   try {
-    const data = await fetchSeason(state.year, controller.signal);
-    const history = state.year === 2026 ? await getHistory() : [];
+    const data = await fetchSeason(state.year, controller.signal, state.year === 2026);
+    const history = await getHistory(state.year);
     if (controller.signal.aborted) return;
     state.data = data;
     state.roster = buildRoster(data.rankings, data.matches);
-    state.ratings = buildRatings(state.roster, data.matches, history);
-    state.scoring = scoreContext(data.matches);
+    const model = buildSeasonModel(state.roster, data.matches, history);
+    state.ratings = model.ratings;
+    state.scoring = model.scoring;
+    state.snapshots = model.snapshots;
     state.historyYears = history.filter(Boolean).length;
+    if (!state.userSorted) {
+      state.sort = [...state.ratings.values()].some((rating) => rating.modelGames) ? "epa" : "prediction";
+      el["sort-select"].value = state.sort;
+    }
     reconcileSelection();
     renderAll();
     const played = data.matches.filter((match) => match.played).length;
@@ -113,25 +136,24 @@ async function loadSeason() {
 }
 
 function reconcileSelection() {
-  const existing = state.roster.find((team) => Number(team.teamKey) === state.selectedTeamKey);
-  if (existing) return;
   const byCode = state.roster.find((team) => teamCode(team) === state.selectedCode);
   state.selectedTeamKey = Number((byCode || state.roster[0])?.teamKey) || null;
 }
 
 function renderAll() {
-  el["data-note"].hidden = Boolean(state.data.rankings.length);
-  el["data-note"].textContent = state.data.rankings.length
-    ? ""
-    : "公式順位はまだ公開されていません。参加国は対戦表から表示し、勝率は過去の実績を使った暫定予測です。";
-  el["prediction-source"].textContent = state.data.matches.some((match) => match.played)
-    ? "今年の結果を反映"
-    : state.historyYears ? `過去${state.historyYears}年の実績から推定` : "実績データ不足";
+  const notes = [];
+  if (!state.data.rankings.length) notes.push("公式順位はまだ未発表です。参加国は対戦表から表示しています。");
+  if (state.scoring?.source === "prior") notes.push("予測得点は過去年の得点水準を使った暫定値です。今年の結果が公開されると自動で補正します。");
+  el["data-note"].hidden = !notes.length;
+  el["data-note"].textContent = notes.join(" ");
+  el["prediction-source"].textContent = state.scoring?.source === "live"
+    ? `ランキング戦 ${Math.floor(state.scoring.playedAlliances / 2)} 試合の実測を反映`
+    : state.historyYears ? `過去${state.historyYears}年の得点水準・暫定` : "得点実績不足";
   updateTeamPicker();
   renderTeam();
   renderFeatured();
   renderSchedule();
-  renderPast();
+  renderResults();
   renderLeaderboard();
 }
 
@@ -142,10 +164,11 @@ function selectTeam(teamKey) {
   el["team-search"].value = "";
   updateTeamPicker();
   state.visibleMatches = 12;
+  state.visibleResults = 10;
   renderTeam();
   renderFeatured();
   renderSchedule();
-  renderPast();
+  renderResults();
   renderLeaderboard();
   history.replaceState(null, "", `#team=${encodeURIComponent(state.selectedCode)}`);
 }
@@ -156,6 +179,14 @@ function setScheduleView(view) {
   el["show-team"].classList.toggle("active", view === "team");
   el["show-all"].classList.toggle("active", view === "all");
   renderSchedule();
+}
+
+function setResultView(view) {
+  state.resultView = view;
+  state.visibleResults = 10;
+  el["show-results-team"].classList.toggle("active", view === "team");
+  el["show-results-all"].classList.toggle("active", view === "all");
+  renderResults();
 }
 
 function updateTeamPicker() {
@@ -178,11 +209,14 @@ function renderTeam() {
   }
   const metric = state.ratings.get(Number(team.teamKey)) || {};
   const upcoming = teamMatches().filter((match) => !match.played).length;
+  const componentNote = state.year === 2026 ? "得点詳細の公開後に算出" : "内訳は 2026 年のみ";
   el["selected-team-title"].textContent = `${displayName(team)} · ${teamCode(team)}`;
   el["team-summary"].innerHTML = [
     statCard("これからの試合", formatNumber(upcoming), "公開済みの対戦表", true),
     statCard("公式順位", team.rank == null ? "—" : `#${formatNumber(team.rank)}`, team.rank == null ? "まだ未発表" : "FIRST Global 公式"),
-    statCard("FGC EPA", formatDecimal(metric.epa), metric.modelGames ? `${metric.modelGames} 試合から算出` : "今年の試合後に算出"),
+    statCard("総合 EPA", formatDecimal(metric.epa), metric.epaRank ? `EPA #${metric.epaRank} · ${metric.modelGames} 試合` : "今年の試合後に算出", true),
+    statCard("本体 EPA", formatDecimal(metric.mainEpa), metric.mainEpaRank ? `#${metric.mainEpaRank} · 終盤以外` : componentNote),
+    statCard("終盤 EPA", formatDecimal(metric.endgameEpa), metric.endgameEpaRank ? `#${metric.endgameEpaRank} · 登坂など` : componentNote),
     statCard("前年の公式順位", metric.previousRank == null ? "—" : `#${formatNumber(metric.previousRank)}`, metric.previousRank == null ? "前年データなし" : "予測の参考情報"),
   ].join("");
 }
@@ -200,17 +234,17 @@ function renderFeatured() {
   }
   const redPct = Math.round(prediction.redProbability * 100);
   const bluePct = 100 - redPct;
-  const scoreText = prediction.projected
-    ? `予測得点: 赤 ${prediction.projected.red} · 青 ${prediction.projected.blue}`
-    : "得点予測は今年の結果が集まってから表示";
+  const scoreText = state.scoring?.source === "live"
+    ? "今年の得点水準と直近の試合結果を反映"
+    : "初戦前の得点は過去年のスケールによる暫定値";
   el["featured-prediction"].innerHTML = `<article class="featured">
     <div class="featured-top"><strong>次の試合 · ${escapeHtml(matchLabel(next))}</strong><span class="match-meta">${escapeHtml(matchTime(next))} · フィールド ${escapeHtml(String(next.field || "—"))}</span></div>
     <div class="featured-body">
       <div class="alliance red"><span class="alliance-label">赤アライアンス</span><div class="alliance-team-list">${prediction.red.map(teamChip).join("")}</div></div>
-      <div class="probability-center"><small>予測勝率</small><strong>${redPct}% <span style="color:#98a2b3;font-size:15px">対</span> ${bluePct}%</strong><div class="probability-bar" role="img" aria-label="赤 ${redPct} パーセント、青 ${bluePct} パーセント"><span style="width:${redPct}%"></span></div><div class="probability-labels"><span class="red-value">赤 ${redPct}%</span><span class="blue-value">青 ${bluePct}%</span></div></div>
+      <div class="probability-center"><small>予測得点 · Estimated Points</small><strong class="forecast-score"><span class="red-value">${prediction.projected?.red ?? "—"}</span><span class="score-divider">:</span><span class="blue-value">${prediction.projected?.blue ?? "—"}</span></strong><div class="forecast-unit">赤 : 青</div><div class="probability-bar" role="img" aria-label="赤 ${redPct} パーセント、青 ${bluePct} パーセント"><span style="width:${redPct}%"></span></div><div class="probability-labels"><span class="red-value">赤 ${redPct}%</span><span class="blue-value">青 ${bluePct}%</span></div></div>
       <div class="alliance blue"><span class="alliance-label">青アライアンス</span><div class="alliance-team-list">${prediction.blue.map(teamChip).join("")}</div></div>
     </div>
-    <div class="featured-footer"><span>${escapeHtml(scoreText)}</span><span>過去実績あり ${prediction.covered}/${prediction.totalTeams} チーム · 独自モデルによる参考値</span></div>
+    <div class="featured-footer"><span>${escapeHtml(scoreText)}</span><span>実績あり ${prediction.covered}/${prediction.totalTeams} チーム · 独自モデルによる参考値</span></div>
   </article>`;
 }
 
@@ -237,23 +271,40 @@ function renderMatchCard(match) {
   return `<article class="match-card">
     <div class="match-card-id"><strong>${escapeHtml(matchLabel(match))}</strong><span>${escapeHtml(matchTime(match))} · フィールド ${escapeHtml(String(match.field || "—"))}</span></div>
     <div class="match-card-sides"><div class="match-side"><b>赤</b><span title="${escapeHtml(redTeams)}">${escapeHtml(redTeams)}</span></div><span class="match-versus">対</span><div class="match-side blue"><b>青</b><span title="${escapeHtml(blueTeams)}">${escapeHtml(blueTeams)}</span></div></div>
-    <div class="match-card-prediction"><div class="probability-bar" role="img" aria-label="赤 ${redPct} パーセント、青 ${100 - redPct} パーセント"><span style="width:${redPct}%"></span></div><div class="probability-labels"><span class="red-value">赤 ${redPct}%</span><span class="blue-value">青 ${100 - redPct}%</span></div><small>${prediction.projected ? `予測得点 ${prediction.projected.red} : ${prediction.projected.blue}` : `過去実績あり ${prediction.covered}/${prediction.totalTeams}`}</small></div>
+    <div class="match-card-prediction"><div class="compact-score"><small>予測得点</small><strong><span class="red-value">${prediction.projected?.red ?? "—"}</span> : <span class="blue-value">${prediction.projected?.blue ?? "—"}</span></strong></div><div class="probability-bar" role="img" aria-label="赤 ${redPct} パーセント、青 ${100 - redPct} パーセント"><span style="width:${redPct}%"></span></div><div class="probability-labels"><span class="red-value">赤 ${redPct}%</span><span class="blue-value">青 ${100 - redPct}%</span></div></div>
   </article>`;
 }
 
-function renderPast() {
-  const matches = teamMatches().filter((match) => match.played).sort(sortMatches).slice(-5).reverse();
-  if (!matches.length) {
-    el["past-list"].innerHTML = '<div class="empty-state">このチームの試合結果はまだありません。</div>';
-    return;
-  }
-  el["past-list"].innerHTML = matches.map((match) => {
-    const participant = match.participants.find((p) => Number(p.teamKey) === state.selectedTeamKey);
-    const red = Number(participant.station) < 20;
-    const allies = match.participants.filter((p) => (Number(p.station) < 20) === red).map(teamCodeFromParticipant);
-    const opponents = match.participants.filter((p) => (Number(p.station) < 20) !== red).map(teamCodeFromParticipant);
-    return `<div class="past-row"><strong>${escapeHtml(matchLabel(match))}</strong><span>${escapeHtml(allies.join(" · "))} 対 ${escapeHtml(opponents.join(" · "))}</span><strong>${formatNumber(red ? match.redScore : match.blueScore)} : ${formatNumber(red ? match.blueScore : match.redScore)}</strong></div>`;
-  }).join("");
+function renderResults() {
+  const matches = (state.resultView === "team" ? teamMatches() : state.data?.matches || [])
+    .filter((match) => match.played)
+    .sort(sortMatches)
+    .reverse();
+  el["results-count"].textContent = `(${formatNumber(matches.length)} 試合)`;
+  const shown = matches.slice(0, state.visibleResults);
+  el["result-list"].innerHTML = shown.length
+    ? shown.map(renderResultCard).join("")
+    : '<div class="empty-state">終了した試合はまだありません。</div>';
+  el["results-more"].hidden = shown.length >= matches.length;
+}
+
+function renderResultCard(match) {
+  const snapshot = state.snapshots.get(matchKey(match));
+  const red = (match.participants || []).filter((p) => Number(p.station) < 20).map(teamCodeFromParticipant).join(" · ");
+  const blue = (match.participants || []).filter((p) => Number(p.station) > 20).map(teamCodeFromParticipant).join(" · ");
+  const verdicts = {
+    correct: ["的中", "correct"],
+    incorrect: ["不的中", "incorrect"],
+    tie: ["引き分け", "neutral"],
+    "no-pick": ["予測なし", "neutral"],
+  };
+  const [label, className] = verdicts[snapshot?.verdict] || ["予測なし", "neutral"];
+  const redPct = snapshot ? Math.round(snapshot.redProbability * 100) : null;
+  return `<article class="result-card">
+    <div class="result-heading"><div><strong>${escapeHtml(matchLabel(match))}</strong><span>${escapeHtml(matchTime(match))} · フィールド ${escapeHtml(String(match.field || "—"))}</span></div><span class="verdict ${className}">${label}</span></div>
+    <div class="result-content"><div class="result-side red"><b>赤 · ${escapeHtml(red)}</b><div><span>実得点</span><strong>${formatNumber(match.redScore)}</strong></div><small>試合前予測 ${snapshot?.projected?.red ?? "—"} 点</small></div><div class="result-versus">対</div><div class="result-side blue"><b>青 · ${escapeHtml(blue)}</b><div><span>実得点</span><strong>${formatNumber(match.blueScore)}</strong></div><small>試合前予測 ${snapshot?.projected?.blue ?? "—"} 点</small></div></div>
+    <div class="result-footer"><span>${snapshot ? `試合前の勝率 · 赤 ${redPct}% / 青 ${100 - redPct}%` : "試合前予測なし"}</span><span>終了後のデータはこの試合の予測に使用していません</span></div>
+  </article>`;
 }
 
 function renderLeaderboard() {
@@ -267,6 +318,8 @@ function renderLeaderboard() {
     prediction: (a, b) => (b.metric.rating || 0) - (a.metric.rating || 0),
     official: (a, b) => nullableRank(a.team.rank) - nullableRank(b.team.rank),
     epa: (a, b) => nullableValue(b.metric.epa) - nullableValue(a.metric.epa),
+    main: (a, b) => nullableValue(b.metric.mainEpa) - nullableValue(a.metric.mainEpa),
+    endgame: (a, b) => nullableValue(b.metric.endgameEpa) - nullableValue(a.metric.endgameEpa),
     previous: (a, b) => nullableRank(a.metric.previousRank) - nullableRank(b.metric.previousRank),
   };
   rows.sort((a, b) => (compare[state.sort] || compare.prediction)(a, b) || displayName(a.team).localeCompare(displayName(b.team), "ja"));
@@ -274,13 +327,14 @@ function renderLeaderboard() {
     const key = Number(team.teamKey);
     const validPrediction = metric.historical || metric.modelGames;
     return `<tr data-team-key="${key}" class="${key === state.selectedTeamKey ? "selected" : ""}" tabindex="0" aria-label="${escapeHtml(displayName(team))}を選択">
-      <td>${validPrediction ? `#${predictionRanks.get(key)}` : "—"}</td>
+      <td>${metric.epaRank ? `#${metric.epaRank}` : "—"}</td>
       <td><div class="table-team"><b>${escapeHtml(teamCode(team))}</b><span>${escapeHtml(displayName(team))}</span></div></td>
-      <td>${team.rank == null ? "—" : `#${formatNumber(team.rank)}`}</td>
       <td>${formatDecimal(metric.epa)}</td>
-      <td>${metric.previousRank == null ? "—" : `#${formatNumber(metric.previousRank)}`}</td>
-      <td>${validPrediction ? signed(metric.rating) : "—"}</td>
-      <td>${formatNumber(team.played)}</td>
+      <td>${formatDecimal(metric.mainEpa)}</td>
+      <td>${formatDecimal(metric.endgameEpa)}</td>
+      <td>${formatNumber(metric.modelGames)}</td>
+      <td>${team.rank == null ? "—" : `#${formatNumber(team.rank)}`}</td>
+      <td>${validPrediction ? `#${predictionRanks.get(key)} · ${signed(metric.rating)}` : "—"}</td>
     </tr>`;
   }).join("");
   el["leaderboard-body"].querySelectorAll("tr[data-team-key]").forEach((row) => {
@@ -353,5 +407,10 @@ function escapeHtml(value) {
 
 const hashCode = new URLSearchParams(location.hash.replace(/^#/, "")).get("team");
 if (hashCode) state.selectedCode = hashCode.toUpperCase();
+const requestedYear = Number(new URLSearchParams(location.search).get("year"));
+if ([2022, 2023, 2024, 2025, 2026].includes(requestedYear)) {
+  state.year = requestedYear;
+  el["year-select"].value = String(requestedYear);
+}
 loadSeason();
 setInterval(() => { if (!document.hidden && !state.loading) loadSeason(); }, AUTO_REFRESH_MS);

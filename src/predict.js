@@ -79,12 +79,75 @@ export function buildRatings(roster, currentMatches, history = []) {
   }));
 }
 
-export function scoreContext(matches = []) {
+export function scoreContext(matches = [], history = []) {
+  const historical = history.map((season) => season ? allianceRows(season.matches || []).map((row) => row.score) : []);
+  const weightTotal = historical.reduce((sum, scores, index) => sum + (scores.length ? PRIOR_WEIGHTS[index] || 0 : 0), 0);
+  const priorMean = weightTotal ? historical.reduce((sum, scores, index) => sum + (scores.length ? average(scores) * (PRIOR_WEIGHTS[index] || 0) : 0), 0) / weightTotal : null;
+  const priorDeviation = weightTotal ? historical.reduce((sum, scores, index) => sum + (scores.length ? deviation(scores) * (PRIOR_WEIGHTS[index] || 0) : 0), 0) / weightTotal : null;
   const scores = allianceRows(matches).map((row) => row.score);
-  if (scores.length < 12) return null;
-  const mean = average(scores);
-  const deviation = Math.sqrt(average(scores.map((score) => (score - mean) ** 2)));
-  return { mean, deviation };
+  if (priorMean == null && !scores.length) return null;
+  if (!scores.length) return { mean: priorMean, deviation: Math.max(8, priorDeviation), source: "prior", playedAlliances: 0 };
+
+  // A small historical prior gives way as soon as this year's scores arrive.
+  const currentMean = 0.4 * average(scores) + 0.6 * average(scores.slice(-24));
+  const currentDeviation = deviation(scores);
+  const currentWeight = priorMean == null ? 1 : scores.length / (scores.length + 2);
+  const mean = (1 - currentWeight) * (priorMean ?? currentMean) + currentWeight * currentMean;
+  const spread = (1 - currentWeight) * (priorDeviation ?? currentDeviation) + currentWeight * currentDeviation;
+  return { mean, deviation: Math.max(8, spread), source: "live", playedAlliances: scores.length };
+}
+
+export function matchKey(match) {
+  return `${match.eventKey || ""}:${match.tournamentKey || ""}:${match.id || match.name || ""}`;
+}
+
+export function buildSeasonModel(roster, matches, history = []) {
+  const ratings = new Map([...buildRatings(roster, [], history)].map(([key, value]) => [key, { ...value, observedGames: 0 }]));
+  const snapshots = new Map();
+  const played = matches.filter((match) => match.played && Number.isFinite(Number(match.redScore)) && Number.isFinite(Number(match.blueScore)))
+    .sort((a, b) => matchTime(a) - matchTime(b) || Number(a.id || 0) - Number(b.id || 0));
+  const completed = [];
+  let scoring = scoreContext([], history);
+
+  for (let index = 0; index < played.length;) {
+    const time = matchTime(played[index]);
+    const group = [];
+    while (index < played.length && matchTime(played[index]) === time) group.push(played[index++]);
+    const changes = new Map();
+    for (const match of group) {
+      const prediction = predictMatch(match, ratings, scoring);
+      if (!prediction) continue;
+      const actualWinner = Number(match.redScore) === Number(match.blueScore)
+        ? "tie" : Number(match.redScore) > Number(match.blueScore) ? "red" : "blue";
+      const predictedWinner = prediction.redProbability === 0.5
+        ? null : prediction.redProbability > 0.5 ? "red" : "blue";
+      snapshots.set(matchKey(match), {
+        ...prediction,
+        actualWinner,
+        predictedWinner,
+        verdict: actualWinner === "tie" ? "tie" : !predictedWinner ? "no-pick" : actualWinner === predictedWinner ? "correct" : "incorrect",
+      });
+      const expectedDifference = prediction.projected ? prediction.projected.red - prediction.projected.blue : 0;
+      const difference = Number(match.redScore) - Number(match.blueScore) - expectedDifference;
+      const scale = Math.max(12, scoring?.deviation || 25) * Math.SQRT2;
+      const adjustment = clamp(0.14 * difference / scale, -0.35, 0.35);
+      for (const participant of prediction.red) addChange(changes, participant.teamKey, adjustment);
+      for (const participant of prediction.blue) addChange(changes, participant.teamKey, -adjustment);
+    }
+    for (const [key, change] of changes) {
+      const rating = ratings.get(key);
+      if (rating) {
+        rating.rating = clamp(rating.rating + change.delta, -2.5, 2.5);
+        rating.observedGames += change.games;
+      }
+    }
+    completed.push(...group);
+    scoring = scoreContext(completed, history);
+  }
+
+  const current = buildTeamMetrics(roster, matches);
+  for (const [key, metric] of current) ratings.set(key, { ...ratings.get(key), ...metric });
+  return { ratings, scoring, snapshots };
 }
 
 export function predictMatch(match, ratings, scoring = null) {
@@ -97,7 +160,10 @@ export function predictMatch(match, ratings, scoring = null) {
   const redRating = total(red);
   const blueRating = total(blue);
   const redProbability = clamp(1 / (1 + Math.exp(-(redRating - blueRating) / PROBABILITY_SCALE)), 0.05, 0.95);
-  const covered = participants.filter((p) => ratings.get(Number(p.teamKey))?.historical).length;
+  const covered = participants.filter((p) => {
+    const rating = ratings.get(Number(p.teamKey));
+    return rating?.historical || rating?.observedGames || rating?.modelGames;
+  }).length;
   const projected = scoring ? {
     red: Math.max(0, Math.round(scoring.mean + (redRating / red.length) * scoring.deviation * 0.65)),
     blue: Math.max(0, Math.round(scoring.mean + (blueRating / blue.length) * scoring.deviation * 0.65)),
@@ -114,6 +180,26 @@ function standardized(metrics) {
 
 function average(values) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
+function deviation(values) {
+  const mean = average(values);
+  return values.length ? Math.sqrt(average(values.map((value) => (value - mean) ** 2))) : 0;
+}
+
+function matchTime(match) {
+  // Scheduled field slots are a safer boundary than staggered actual starts:
+  // a result from one field cannot be assumed known before another field starts.
+  const time = Date.parse(match.scheduledTime);
+  return Number.isFinite(time) ? time : Number(match.id || 0);
+}
+
+function addChange(changes, teamKey, delta) {
+  const key = Number(teamKey);
+  const current = changes.get(key) || { delta: 0, games: 0 };
+  current.delta += delta;
+  current.games += 1;
+  changes.set(key, current);
 }
 
 function clamp(value, min, max) {

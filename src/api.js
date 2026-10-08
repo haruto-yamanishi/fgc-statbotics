@@ -1,10 +1,10 @@
 export const API_BASE = "https://api.first.global";
 export const RESULTS_BASE = "https://results.first.global";
 
-export async function fetchSeason(year, signal) {
+export async function fetchSeason(year, signal, includeDetails = false) {
   const url = new URL("/v1", API_BASE);
   url.searchParams.set("year", String(year));
-  url.searchParams.set("excludeMatchDetails", "true");
+  url.searchParams.set("excludeMatchDetails", String(!includeDetails));
 
   const response = await fetch(url, {
     signal,

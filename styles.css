@@ -56,7 +56,7 @@ input, .team-picker select, .leader-controls select { height: 38px; padding: 7px
 input:focus, select:focus, button:focus-visible, a:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
 .team-picker input { width: 240px; }
 .team-picker select { width: 270px; }
-.summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .stat-card { min-height: 99px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
 .stat-card.emphasis { border-color: #bfdbfe; background: #f7fbff; }
 .stat-card span { display: block; color: var(--muted); font-size: 12px; }
@@ -83,6 +83,11 @@ input:focus, select:focus, button:focus-visible, a:focus-visible { outline: 2px 
 .probability-center { text-align: center; }
 .probability-center strong { display: block; font-size: 28px; letter-spacing: -.04em; }
 .probability-center small { color: var(--muted); font-size: 11px; }
+.probability-center .forecast-score { display: flex; justify-content: center; align-items: baseline; gap: 8px; margin: 3px 0 0; font-size: 40px; line-height: 1.1; }
+.red-value { color: var(--red); }
+.blue-value { color: var(--blue); }
+.score-divider { color: #98a2b3; font-size: 25px; font-weight: 400; }
+.forecast-unit { margin-bottom: 10px; color: var(--muted); font-size: 11px; }
 .probability-bar { height: 11px; display: flex; overflow: hidden; border-radius: 8px; background: var(--blue); }
 .probability-bar span { background: var(--red); }
 .probability-labels { display: flex; justify-content: space-between; margin-top: 7px; font-size: 14px; font-weight: 750; }
@@ -110,18 +115,38 @@ input:focus, select:focus, button:focus-visible, a:focus-visible { outline: 2px 
 .match-side span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #475467; font-size: 12px; }
 .match-versus { color: #98a2b3; font-size: 11px; }
 .match-card-prediction { min-width: 0; }
+.compact-score { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.compact-score small { color: var(--muted); font-size: 10px; }
+.compact-score strong { font-size: 18px; letter-spacing: -.03em; white-space: nowrap; }
 .match-card-prediction .probability-bar { height: 8px; }
 .match-card-prediction .probability-labels { font-size: 12px; margin-top: 5px; }
 .match-card-prediction small { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
 .show-more { display: block; width: 100%; padding: 10px; margin-top: 12px; border: 1px solid #d0d5dd; border-radius: 6px; background: #fff; color: #344054; font-size: 13px; font-weight: 700; }
 .show-more:hover { border-color: var(--blue); color: var(--blue); }
 .empty-state { padding: 28px; border: 1px dashed #cbd5e1; border-radius: 6px; background: #fff; color: var(--muted); font-size: 13px; text-align: center; }
-.past-list { display: grid; gap: 8px; }
-.past-row { display: grid; grid-template-columns: 120px 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 5px; font-size: 12px; }
-.past-row span { color: var(--muted); }
-.past-row strong { white-space: nowrap; }
+.heading-count { color: var(--muted); font-size: 14px; font-weight: 400; }
+.result-list { display: grid; gap: 9px; }
+.result-card { padding: 14px 16px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.result-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.result-heading strong, .result-heading span { display: block; }
+.result-heading strong { font-size: 13px; }
+.result-heading div > span { margin-top: 2px; color: var(--muted); font-size: 11px; }
+.verdict { flex: none; padding: 4px 8px; border-radius: 5px; font-size: 11px; font-weight: 750; }
+.verdict.correct { color: #067647; background: #ecfdf3; }
+.verdict.incorrect { color: #b42318; background: #fef3f2; }
+.verdict.neutral { color: #475467; background: #f2f4f7; }
+.result-content { display: grid; grid-template-columns: 1fr 24px 1fr; align-items: center; gap: 14px; }
+.result-side { min-width: 0; padding: 10px 12px; border: 1px solid #fecdd3; border-radius: 5px; background: #fffafb; }
+.result-side.blue { border-color: #bfdbfe; background: #f8fbff; }
+.result-side b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--red); font-size: 11px; }
+.result-side.blue b { color: var(--blue); }
+.result-side div { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 4px; }
+.result-side div span, .result-side small { color: var(--muted); font-size: 11px; }
+.result-side div strong { font-size: 23px; line-height: 1.1; }
+.result-versus { color: #98a2b3; text-align: center; font-size: 11px; }
+.result-footer { display: flex; justify-content: space-between; gap: 10px; margin-top: 9px; color: var(--muted); font-size: 10px; }
 .table-wrap { overflow: auto; max-height: 640px; border: 1px solid var(--line); border-radius: 5px; }
-table { width: 100%; min-width: 770px; border-collapse: collapse; font-size: 12px; }
+table { width: 100%; min-width: 900px; border-collapse: collapse; font-size: 12px; }
 th { position: sticky; top: 0; z-index: 1; padding: 10px 12px; background: #f3f4f6; color: #475467; font-weight: 700; text-align: right; white-space: nowrap; }
 td { padding: 9px 12px; border-top: 1px solid #edf0f2; text-align: right; white-space: nowrap; }
 th:nth-child(2), td:nth-child(2) { text-align: left; }
@@ -155,6 +180,9 @@ footer { border-top: 1px solid var(--line); background: #fff; }
   .official-link { display: none; }
   .page-heading { align-items: start; flex-direction: column; padding-top: 26px; }
   .update-panel { justify-items: start; }
+  .section-title { flex-direction: column; align-items: stretch; }
+  .pill, .source-badge { align-self: flex-start; }
+  .recent-section .segmented { align-self: flex-start; }
   .team-section, .recent-section, .leaderboard-section { padding: 18px 14px; }
   .team-picker, .schedule-controls, .leader-controls { flex-direction: column; align-items: stretch; }
   .team-picker label, .team-picker input, .team-picker select, .schedule-controls input, .leader-controls input, .leader-controls select { width: 100%; }
@@ -170,7 +198,9 @@ footer { border-top: 1px solid var(--line); background: #fff; }
   .featured-footer { flex-direction: column; gap: 3px; }
   .match-card { grid-template-columns: 1fr; gap: 9px; }
   .match-card-prediction { grid-column: 1; }
-  .past-row { grid-template-columns: 1fr auto; }
-  .past-row span { grid-column: 1 / -1; }
+  .result-content { gap: 5px; grid-template-columns: minmax(0, 1fr) 14px minmax(0, 1fr); }
+  .result-side { padding: 8px; }
+  .result-side div strong { font-size: 18px; }
+  .result-footer { flex-direction: column; gap: 2px; }
   .footer-inner { flex-direction: column; gap: 5px; }
 }
