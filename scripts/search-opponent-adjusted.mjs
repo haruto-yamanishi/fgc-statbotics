@@ -51,7 +51,7 @@ const baseline={early:metric(baseP,0,earlyLimit),mid:metric(baseP,earlyLimit,mid
 const allIds=new Set(games.flatMap(x=>[...x.red,...x.blue]));
 const byId=new Map([...allIds].map(id=>[id,priorRatings.get(id)||0]));
 const avg=arr=>arr.reduce((s,v)=>s+v,0)/(arr.length||1);
-function run(c) {
+function run(c, capture = false) {
  const scoreRating=new Map([...allIds].map(id=>[id,c.hist*(byId.get(id)||0)]));
  const winRating=new Map([...allIds].map(id=>[id,c.hist*(byId.get(id)||0)]));
  const wins=new Map([...allIds].map(id=>[id,{n:0,brace:0}]));
@@ -121,7 +121,7 @@ function run(c) {
     ids.forEach((id,i)=>{const st=wins.get(id);st.n++;st.brace+=climbs[i]||0;});
   }
  }
- return {early:metric(pred,0,earlyLimit),mid:metric(pred,earlyLimit,midLimit),late:metric(pred,midLimit,games.length),overall:metric(pred,0,games.length)};
+ return {early:metric(pred,0,earlyLimit),mid:metric(pred,earlyLimit,midLimit),late:metric(pred,midLimit,games.length),overall:metric(pred,0,games.length),...(capture?{pred}:{})};
 }
 const params={
  hist:[0,.25,.5,.75,1,1.5,2], offensePrior:[0,.25,.5,1],
@@ -178,4 +178,80 @@ console.log("FGC_NEW_FAMILY "+JSON.stringify({
  bestAllDiagnosticOnly:bestAll.slice(0,5).map(slim),
  selectedModelsPassingLater:matched.length,
  safeCandidates:matched.slice(0,7).map(slim)
+}));
+
+const qualify=c=>c.early.loss<=baseline.early.loss+.025
+ &&c.mid.correct>=baseline.mid.correct+1
+ &&c.mid.loss<baseline.mid.loss;
+const developed=candidates.filter(qualify).sort((a,b)=>a.cost-b.cost);
+const baselineAcross=baseP.map(x=>({p:x.p,outcome:x.outcome,i:x.i}));
+const topDev=developed.slice(0,120);
+const diverse=[];
+const seen=new Set();
+for(const c of topDev){
+ const x=run(c.c,true),signature=x.pred.map(z=>z.p.toFixed(4)).join(",");
+ if(seen.has(signature))continue;
+ seen.add(signature);
+ diverse.push({model:c,result:x});
+ if(diverse.length>=20)break;
+}
+function blendEnsemble(k,baselineMix,shrink){
+ const selections=diverse.slice(0,k);
+ if(!selections.length)return null;
+ const predictions=baselineAcross.map((m,i)=>{
+  const p=selections.reduce((s,c)=>s+c.result.pred[i].p,0)/selections.length;
+  const mix=(1-baselineMix)*p+baselineMix*m.p;
+  const adjusted=Math.max(.05,Math.min(.95,.5+(mix-.5)*shrink));
+  return {...m,p:adjusted};
+ });
+ return {size:selections.length,baselineMix,shrink,predictions,
+  early:metric(predictions,0,earlyLimit),mid:metric(predictions,earlyLimit,midLimit),
+  late:metric(predictions,midLimit,games.length),all:metric(predictions,0,games.length)};
+}
+const ensembles=[];
+for(const k of [1,3,5,10,20])for(const baselineMix of [0,.25,.5])for(const shrink of [.75,1,1.25]){
+ const x=blendEnsemble(k,baselineMix,shrink);if(x)ensembles.push(x);
+}
+function compactEnsemble(x){
+ const {predictions,...rest}=x;return rest;
+}
+const sortedEnsembles=ensembles.sort((a,b)=>.35*a.early.loss+.65*a.mid.loss-(.35*b.early.loss+.65*b.mid.loss));
+const selected=sortedEnsembles[0];
+const allBest=run(bestAll[0].c,true);
+function confidence(rows,lo,hi){
+ return [.5,.55,.6,.65,.7,.75,.8,.85].map(t=>{
+  const xs=rows.filter(x=>x.i>=lo&&x.i<hi&&x.outcome!==0&&Math.max(x.p,1-x.p)>=t);
+  const correct=xs.filter(x=>(x.p>.5?1:-1)===x.outcome).length;
+  return {minConfidence:t,predicted:xs.length,correct,coverage:xs.length/Math.max(1,rows.filter(x=>x.i>=lo&&x.i<hi&&x.outcome!==0).length),hitRate:xs.length?correct/xs.length:null};
+ });
+}
+function compared(a,b,lo,hi){
+ const left=a.filter(x=>x.i>=lo&&x.i<hi&&x.outcome!==0);
+ const right=b.filter(x=>x.i>=lo&&x.i<hi&&x.outcome!==0);
+ let both=0,baselineOnly=0,candidateOnly=0,neither=0;
+ for(let i=0;i<left.length;i++){
+  const baselineHit=(left[i].p>.5?1:-1)===left[i].outcome;
+  const candidateHit=(right[i].p>.5?1:-1)===right[i].outcome;
+  if(baselineHit&&candidateHit)both++;
+  else if(baselineHit)baselineOnly++;
+  else if(candidateHit)candidateOnly++;
+  else neither++;
+ }
+ return {both,baselineOnly,candidateOnly,neither};
+}
+console.log("FGC_ROBUST_CHECK "+JSON.stringify({
+ played:games.length,base:baseline,trainEligible:developed.length,
+ selectedDevelopmentSingle:developed[0]?{params:developed[0].c,early:developed[0].early,mid:developed[0].mid,late:developed[0].late,overall:developed[0].overall}:null,
+ uniqueModelTop120:diverse.length,
+ bestDevelopmentEnsembles:sortedEnsembles.slice(0,10).map(compactEnsemble),
+ bestOverallDiagnostic:{params:bestAll[0].c,early:allBest.early,mid:allBest.mid,late:allBest.late,overall:allBest.overall},
+ confidence:{
+  baselineAll:confidence(baselineAcross,0,games.length),
+  bestAll:confidence(allBest.pred,0,games.length),
+  bestAllLate:confidence(allBest.pred,midLimit,games.length),
+  devSelectedAll:selected?confidence(selected.predictions,0,games.length):[],
+  devSelectedLate:selected?confidence(selected.predictions,midLimit,games.length):[]
+ },
+ pairedAll:compared(baselineAcross,allBest.pred,0,games.length),
+ pairedLate:compared(baselineAcross,allBest.pred,midLimit,games.length)
 }));
