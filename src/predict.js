@@ -134,13 +134,17 @@ export function buildSeasonModel(roster, matches, history = [], params = MODEL_P
       const difference = Number(match.redScore) - Number(match.blueScore) - expectedDifference;
       const scale = Math.max(12, scoring?.deviation || 25) * Math.SQRT2;
       const adjustment = clamp(params.onlineRate * difference / scale, -params.onlineMaxAdjustment, params.onlineMaxAdjustment);
-      for (const participant of prediction.red) addChange(changes, participant.teamKey, adjustment);
-      for (const participant of prediction.blue) addChange(changes, participant.teamKey, -adjustment);
+      const scoreScale = Math.max(12, scoring?.deviation || 25);
+      const scoreRate = params.onlineScoreRate || 0;
+      const redPerformance = prediction.projected ? scoreRate * (Number(match.redScore) - prediction.projected.red) / scoreScale : 0;
+      const bluePerformance = prediction.projected ? scoreRate * (Number(match.blueScore) - prediction.projected.blue) / scoreScale : 0;
+      for (const participant of prediction.red) addChange(changes, participant.teamKey, adjustment + redPerformance);
+      for (const participant of prediction.blue) addChange(changes, participant.teamKey, -adjustment + bluePerformance);
     }
     for (const [key, change] of changes) {
       const rating = ratings.get(key);
       if (rating) {
-        rating.rating = clamp(rating.rating + change.delta, -2.5, 2.5);
+        rating.rating = clamp(rating.rating * (1 - (params.ratingDecay || 0)) ** change.games + change.delta, -2.5, 2.5);
         rating.observedGames += change.games;
       }
     }

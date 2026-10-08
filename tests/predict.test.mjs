@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildRoster, buildRatings, buildSeasonModel, matchKey, predictMatch, scoreContext, teamNameJa } from "../src/predict.js";
+import { MODEL_PARAMS } from "../src/model-config.js";
 
 const participant = (teamKey, country, station) => ({ teamKey, country, station });
 const match = (red, blue, redScore = 80, blueScore = 40, played = true) => ({
@@ -101,6 +102,26 @@ test("同時刻の試合結果は互いの試合前予測に使わない", () =>
   const original = buildSeasonModel(roster, [first, second]);
   const changed = buildSeasonModel(roster, [{ ...first, redScore: 1000 }, second]);
   assert.deepEqual(original.snapshots.get(matchKey(second)), changed.snapshots.get(matchKey(second)));
+});
+
+test("得点実績を使う更新は終了した試合の後にだけ次の予測へ反映する", () => {
+  const old = { rankings: [
+    { teamKey: 10, team: { country: "JPN" } },
+    { teamKey: 20, team: { country: "CRC" } },
+  ], matches: [match([participant(10, "JPN")], [participant(20, "CRC")], 50, 50)] };
+  const first = { ...match([participant(1, "JPN")], [participant(2, "CRC")], 100, 100), id: 1, scheduledTime: "2026-10-08T10:00:00Z" };
+  const sameTime = { ...match([participant(1, "JPN")], [participant(3, "USA")], 50, 50), id: 2, scheduledTime: "2026-10-08T10:00:00Z" };
+  const later = { ...match([participant(1, "JPN")], [participant(3, "USA")], 50, 50), id: 3, scheduledTime: "2026-10-08T11:00:00Z" };
+  const params = { ...MODEL_PARAMS, onlineRate: 0, onlineScoreRate: 0.2, scoreRatingScale: 0 };
+  const schedule = [first, sameTime, later];
+  const model = buildSeasonModel(buildRoster([], schedule), schedule, [old], params);
+  const firstSnapshot = model.snapshots.get(matchKey(sameTime));
+  const laterSnapshot = model.snapshots.get(matchKey(later));
+  assert.equal(firstSnapshot.redProbability, 0.5);
+  assert.ok(laterSnapshot.redProbability > 0.5);
+  const changed = buildSeasonModel(buildRoster([], schedule), [{ ...first, redScore: 200, blueScore: 200 }, sameTime, later], [old], params);
+  assert.deepEqual(firstSnapshot, changed.snapshots.get(matchKey(sameTime)));
+  assert.ok(changed.snapshots.get(matchKey(later)).redProbability > laterSnapshot.redProbability);
 });
 
 test("公式集計前のテスト試合は今年の得点水準と試合前予測に入れない", () => {
