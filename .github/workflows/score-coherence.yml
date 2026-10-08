@@ -1,0 +1,18 @@
+name: Test 2026 score coherence
+on:
+  push:
+    branches: [fix/2026-score-coherence]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+      - run: node scripts/verify-2026-score-coherence.mjs
