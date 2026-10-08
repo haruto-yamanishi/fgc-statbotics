@@ -1,36 +1,60 @@
 import { fetchSeason } from "./api.js";
-import { buildTeamMetrics, allianceRows } from "./epa.js";
+import { buildRoster, buildRatings, predictMatch, scoreContext, teamCode, teamNameJa as displayName } from "./predict.js";
 
 const DEFAULT_TEAM = "JPN";
 const AUTO_REFRESH_MS = 60_000;
+const dateFormat = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit" });
+const timeFormat = new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const numberFormat = new Intl.NumberFormat("ja-JP");
 
+let historyPromise;
 const state = {
   year: 2026,
   data: null,
-  metrics: new Map(),
+  roster: [],
+  ratings: new Map(),
+  scoring: null,
   selectedTeamKey: null,
   selectedCode: DEFAULT_TEAM,
   loading: false,
   controller: null,
+  scheduleView: "team",
+  matchQuery: "",
+  visibleMatches: 12,
   leaderQuery: "",
-  sort: "official",
+  sort: "prediction",
+  historyYears: 0,
 };
 
-const el = Object.fromEntries([
-  "year-select", "event-state", "last-updated", "refresh-button", "team-search", "team-select",
-  "selected-team-title", "team-summary", "epa-feature", "trend-chart", "team-matches", "leader-search",
-  "sort-select", "leaderboard-body", "error-box",
-].map((id) => [id, document.getElementById(id)]));
+const ids = [
+  "year-select", "event-state", "last-updated", "refresh-button", "data-note", "error-box",
+  "team-search", "team-select", "selected-team-title", "team-summary", "prediction-source",
+  "featured-prediction", "schedule-count", "show-team", "show-all", "match-search",
+  "prediction-list", "show-more", "past-list", "leader-search", "sort-select", "leaderboard-body",
+];
+const el = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
 
 el["year-select"].addEventListener("change", () => {
   state.year = Number(el["year-select"].value);
+  state.visibleMatches = 12;
   loadSeason();
 });
 el["refresh-button"].addEventListener("click", loadSeason);
-el["team-select"].addEventListener("change", () => selectTeam(Number(el["team-select"].value)));
 el["team-search"].addEventListener("input", updateTeamPicker);
+el["team-select"].addEventListener("change", () => selectTeam(Number(el["team-select"].value)));
+el["show-team"].addEventListener("click", () => setScheduleView("team"));
+el["show-all"].addEventListener("click", () => setScheduleView("all"));
+el["match-search"].addEventListener("input", () => {
+  state.matchQuery = el["match-search"].value.trim().toLocaleLowerCase("ja");
+  state.visibleMatches = 12;
+  renderSchedule();
+});
+el["show-more"].addEventListener("click", () => {
+  state.visibleMatches += 24;
+  renderSchedule();
+});
 el["leader-search"].addEventListener("input", () => {
-  state.leaderQuery = el["leader-search"].value.trim().toLowerCase();
+  state.leaderQuery = el["leader-search"].value.trim().toLocaleLowerCase("ja");
   renderLeaderboard();
 });
 el["sort-select"].addEventListener("change", () => {
@@ -38,229 +62,294 @@ el["sort-select"].addEventListener("change", () => {
   renderLeaderboard();
 });
 
+function getHistory() {
+  if (!historyPromise) {
+    historyPromise = Promise.allSettled([fetchSeason(2025), fetchSeason(2024)])
+      .then((results) => {
+        const seasons = results.map((result) => result.status === "fulfilled" ? result.value : null);
+        if (seasons.some((season) => !season)) historyPromise = null;
+        return seasons;
+      });
+  }
+  return historyPromise;
+}
+
 async function loadSeason() {
-  if (state.controller) state.controller.abort();
-  state.controller = new AbortController();
+  state.controller?.abort();
+  const controller = new AbortController();
+  state.controller = controller;
   state.loading = true;
-  setError("");
-  el["event-state"].textContent = `Loading ${state.year} results`;
   el["refresh-button"].disabled = true;
+  el["event-state"].textContent = `${state.year} 年のデータを読み込み中…`;
+  setError("");
 
   try {
-    const data = await fetchSeason(state.year, state.controller.signal);
+    const data = await fetchSeason(state.year, controller.signal);
+    const history = state.year === 2026 ? await getHistory() : [];
+    if (controller.signal.aborted) return;
     state.data = data;
-    state.metrics = buildTeamMetrics(data.rankings, data.matches);
+    state.roster = buildRoster(data.rankings, data.matches);
+    state.ratings = buildRatings(state.roster, data.matches, history);
+    state.scoring = scoreContext(data.matches);
+    state.historyYears = history.filter(Boolean).length;
     reconcileSelection();
     renderAll();
-    const played = data.matches.filter((m) => m.played).length;
-    el["event-state"].textContent = `${state.year} live · ${played} matches posted`;
-    el["last-updated"].textContent = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", second: "2-digit" }).format(new Date());
+    const played = data.matches.filter((match) => match.played).length;
+    const upcoming = data.matches.length - played;
+    el["event-state"].textContent = `${state.year} · ${formatNumber(upcoming)} 試合予定 / ${formatNumber(played)} 試合終了`;
+    el["last-updated"].textContent = timeFormat.format(new Date());
   } catch (error) {
     if (error?.name !== "AbortError") {
       console.error(error);
-      setError(`${error.message}. If this is a local file, serve the folder over HTTP (for example: python3 -m http.server 8080).`);
-      el["event-state"].textContent = "Live data unavailable";
+      setError(`公式データを取得できませんでした: ${error.message}`);
+      el["event-state"].textContent = "データを取得できません";
     }
   } finally {
-    state.loading = false;
-    el["refresh-button"].disabled = false;
+    if (state.controller === controller) {
+      state.loading = false;
+      el["refresh-button"].disabled = false;
+    }
   }
 }
 
 function reconcileSelection() {
-  const rankings = state.data?.rankings || [];
-  const existing = rankings.find((r) => Number(r.teamKey) === Number(state.selectedTeamKey));
+  const existing = state.roster.find((team) => Number(team.teamKey) === state.selectedTeamKey);
   if (existing) return;
-  const byCode = rankings.find((r) => teamCode(r).toUpperCase() === state.selectedCode.toUpperCase());
-  state.selectedTeamKey = Number((byCode || rankings[0])?.teamKey ?? 0) || null;
+  const byCode = state.roster.find((team) => teamCode(team) === state.selectedCode);
+  state.selectedTeamKey = Number((byCode || state.roster[0])?.teamKey) || null;
 }
 
 function renderAll() {
+  el["data-note"].hidden = Boolean(state.data.rankings.length);
+  el["data-note"].textContent = state.data.rankings.length
+    ? ""
+    : "公式順位はまだ公開されていません。参加国は対戦表から表示し、勝率は過去の実績を使った暫定予測です。";
+  el["prediction-source"].textContent = state.data.matches.some((match) => match.played)
+    ? "今年の結果を反映"
+    : state.historyYears ? `過去${state.historyYears}年の実績から推定` : "実績データ不足";
   updateTeamPicker();
-  renderSelectedTeam();
+  renderTeam();
+  renderFeatured();
+  renderSchedule();
+  renderPast();
   renderLeaderboard();
 }
 
 function selectTeam(teamKey) {
-  if (!Number.isFinite(teamKey)) return;
+  if (!state.roster.some((team) => Number(team.teamKey) === teamKey)) return;
   state.selectedTeamKey = teamKey;
-  const ranking = getSelectedRanking();
-  if (ranking) state.selectedCode = teamCode(ranking);
-  el["team-select"].value = String(teamKey);
-  renderSelectedTeam();
+  state.selectedCode = teamCode(selectedTeam());
+  el["team-search"].value = "";
+  updateTeamPicker();
+  state.visibleMatches = 12;
+  renderTeam();
+  renderFeatured();
+  renderSchedule();
+  renderPast();
   renderLeaderboard();
   history.replaceState(null, "", `#team=${encodeURIComponent(state.selectedCode)}`);
 }
 
+function setScheduleView(view) {
+  state.scheduleView = view;
+  state.visibleMatches = 12;
+  el["show-team"].classList.toggle("active", view === "team");
+  el["show-all"].classList.toggle("active", view === "all");
+  renderSchedule();
+}
+
 function updateTeamPicker() {
   if (!state.data) return;
-  const query = el["team-search"].value.trim().toLowerCase();
-  const rankings = [...state.data.rankings]
-    .filter((r) => !query || `${teamCode(r)} ${teamName(r)}`.toLowerCase().includes(query))
-    .sort((a, b) => teamName(a).localeCompare(teamName(b)));
-
-  el["team-select"].innerHTML = rankings.map((r) => `<option value="${Number(r.teamKey)}">${escapeHtml(teamCode(r))} — ${escapeHtml(teamName(r))}</option>`).join("");
-  if (state.selectedTeamKey) el["team-select"].value = String(state.selectedTeamKey);
+  const query = el["team-search"].value.trim().toLocaleLowerCase("ja");
+  const teams = state.roster
+    .filter((team) => searchText(team).includes(query))
+    .sort((a, b) => displayName(a).localeCompare(displayName(b), "ja"));
+  el["team-select"].innerHTML = teams.map((team) => `<option value="${Number(team.teamKey)}">${escapeHtml(teamCode(team))} · ${escapeHtml(displayName(team))}</option>`).join("");
+  if (teams.some((team) => Number(team.teamKey) === state.selectedTeamKey)) {
+    el["team-select"].value = String(state.selectedTeamKey);
+  }
 }
 
-function renderSelectedTeam() {
-  const ranking = getSelectedRanking();
-  if (!ranking) return;
-  const metric = state.metrics.get(Number(ranking.teamKey)) || {};
-  el["selected-team-title"].textContent = `${teamName(ranking)} · ${teamCode(ranking)}`;
-
-  const status = performanceStatus(metric.epaPercentile, ranking.rank, state.data.rankings.length);
+function renderTeam() {
+  const team = selectedTeam();
+  if (!team) {
+    el["team-summary"].innerHTML = '<div class="empty-state">チームデータがありません。</div>';
+    return;
+  }
+  const metric = state.ratings.get(Number(team.teamKey)) || {};
+  const upcoming = teamMatches().filter((match) => !match.played).length;
+  el["selected-team-title"].textContent = `${displayName(team)} · ${teamCode(team)}`;
   el["team-summary"].innerHTML = [
-    statCard("Official rank", ordinal(ranking.rank), `of ${state.data.rankings.length}`, true),
-    statCard("Ranking score", formatNumber(ranking.rankingScore), "official"),
-    statCard("Highest points", formatNumber(ranking.highestScore), "single match"),
-    statCard("Climb points", formatNumber(ranking.climbPoints), "tiebreak metric"),
-    statCard("FGC EPA", formatDecimal(metric.epa), metric.epaRank ? `#${metric.epaRank} model rank` : "model pending", true),
-    statCard("Recent form", signed(metric.form), status),
+    statCard("これからの試合", formatNumber(upcoming), "公開済みの対戦表", true),
+    statCard("公式順位", team.rank == null ? "—" : `#${formatNumber(team.rank)}`, team.rank == null ? "まだ未発表" : "FIRST Global 公式"),
+    statCard("FGC EPA", formatDecimal(metric.epa), metric.modelGames ? `${metric.modelGames} 試合から算出` : "今年の試合後に算出"),
+    statCard("前年の公式順位", metric.previousRank == null ? "—" : `#${formatNumber(metric.previousRank)}`, metric.previousRank == null ? "前年データなし" : "予測の参考情報"),
   ].join("");
-
-  renderEpaFeature(ranking, metric);
-  renderTrend(ranking);
-  renderMatches(ranking);
 }
 
-function renderEpaFeature(ranking, metric) {
-  const percentile = Number.isFinite(metric.epaPercentile) ? Math.round(metric.epaPercentile) : null;
-  const confidence = Number.isFinite(metric.confidence) ? Math.round(metric.confidence * 100) : 0;
-  el["epa-feature"].innerHTML = `
-    <div class="epa-number">${formatDecimal(metric.epa)}<small>pts/team</small></div>
-    <div class="epa-meta">
-      <span><strong>${metric.epaRank ? `#${metric.epaRank}` : "—"}</strong> EPA rank</span>
-      <span><strong>${percentile == null ? "—" : `${percentile}%`}</strong> percentile</span>
-      <span><strong>${metric.modelGames ?? 0}</strong> model matches</span>
-      <span><strong>${confidence}%</strong> confidence</span>
+function renderFeatured() {
+  const next = teamMatches().filter((match) => !match.played).sort(sortMatches)[0];
+  if (!next) {
+    el["featured-prediction"].innerHTML = '<div class="empty-state">このチームの今後の試合は、対戦表にまだありません。</div>';
+    return;
+  }
+  const prediction = predictMatch(next, state.ratings, state.scoring);
+  if (!prediction) {
+    el["featured-prediction"].innerHTML = '<div class="empty-state">参加チームが確定すると予測を表示します。</div>';
+    return;
+  }
+  const redPct = Math.round(prediction.redProbability * 100);
+  const bluePct = 100 - redPct;
+  const scoreText = prediction.projected
+    ? `予測得点: 赤 ${prediction.projected.red} · 青 ${prediction.projected.blue}`
+    : "得点予測は今年の結果が集まってから表示";
+  el["featured-prediction"].innerHTML = `<article class="featured">
+    <div class="featured-top"><strong>次の試合 · ${escapeHtml(matchLabel(next))}</strong><span class="match-meta">${escapeHtml(matchTime(next))} · フィールド ${escapeHtml(String(next.field || "—"))}</span></div>
+    <div class="featured-body">
+      <div class="alliance red"><span class="alliance-label">赤アライアンス</span><div class="alliance-team-list">${prediction.red.map(teamChip).join("")}</div></div>
+      <div class="probability-center"><small>予測勝率</small><strong>${redPct}% <span style="color:#98a2b3;font-size:15px">対</span> ${bluePct}%</strong><div class="probability-bar" role="img" aria-label="赤 ${redPct} パーセント、青 ${bluePct} パーセント"><span style="width:${redPct}%"></span></div><div class="probability-labels"><span class="red-value">赤 ${redPct}%</span><span class="blue-value">青 ${bluePct}%</span></div></div>
+      <div class="alliance blue"><span class="alliance-label">青アライアンス</span><div class="alliance-team-list">${prediction.blue.map(teamChip).join("")}</div></div>
     </div>
-    <div class="performance-label">${escapeHtml(performanceStatus(metric.epaPercentile, ranking.rank, state.data.rankings.length))}</div>`;
+    <div class="featured-footer"><span>${escapeHtml(scoreText)}</span><span>過去実績あり ${prediction.covered}/${prediction.totalTeams} チーム · 独自モデルによる参考値</span></div>
+  </article>`;
 }
 
-function renderTrend(ranking) {
-  const key = Number(ranking.teamKey);
-  const rows = allianceRows(state.data.matches).filter((row) => row.teamKeys.includes(key));
-  if (!rows.length) {
-    el["trend-chart"].innerHTML = `<div class="trend-empty">No played ranking matches yet.</div>`;
+function renderSchedule() {
+  if (!state.data) return;
+  const matches = (state.scheduleView === "team" ? teamMatches() : state.data.matches)
+    .filter((match) => !match.played)
+    .filter((match) => !state.matchQuery || matchSearchText(match).includes(state.matchQuery))
+    .sort(sortMatches);
+  el["schedule-count"].textContent = `(${formatNumber(matches.length)} 試合)`;
+  const shown = matches.slice(0, state.visibleMatches);
+  el["prediction-list"].innerHTML = shown.length
+    ? shown.map(renderMatchCard).join("")
+    : '<div class="empty-state">該当する予定試合はありません。</div>';
+  el["show-more"].hidden = shown.length >= matches.length;
+}
+
+function renderMatchCard(match) {
+  const prediction = predictMatch(match, state.ratings, state.scoring);
+  if (!prediction) return "";
+  const redPct = Math.round(prediction.redProbability * 100);
+  const redTeams = prediction.red.map((p) => teamCodeFromParticipant(p)).join(" · ");
+  const blueTeams = prediction.blue.map((p) => teamCodeFromParticipant(p)).join(" · ");
+  return `<article class="match-card">
+    <div class="match-card-id"><strong>${escapeHtml(matchLabel(match))}</strong><span>${escapeHtml(matchTime(match))} · フィールド ${escapeHtml(String(match.field || "—"))}</span></div>
+    <div class="match-card-sides"><div class="match-side"><b>赤</b><span title="${escapeHtml(redTeams)}">${escapeHtml(redTeams)}</span></div><span class="match-versus">対</span><div class="match-side blue"><b>青</b><span title="${escapeHtml(blueTeams)}">${escapeHtml(blueTeams)}</span></div></div>
+    <div class="match-card-prediction"><div class="probability-bar" role="img" aria-label="赤 ${redPct} パーセント、青 ${100 - redPct} パーセント"><span style="width:${redPct}%"></span></div><div class="probability-labels"><span class="red-value">赤 ${redPct}%</span><span class="blue-value">青 ${100 - redPct}%</span></div><small>${prediction.projected ? `予測得点 ${prediction.projected.red} : ${prediction.projected.blue}` : `過去実績あり ${prediction.covered}/${prediction.totalTeams}`}</small></div>
+  </article>`;
+}
+
+function renderPast() {
+  const matches = teamMatches().filter((match) => match.played).sort(sortMatches).slice(-5).reverse();
+  if (!matches.length) {
+    el["past-list"].innerHTML = '<div class="empty-state">このチームの試合結果はまだありません。</div>';
     return;
   }
-
-  const values = rows.map((r) => r.score);
-  const width = 620, height = 180, padX = 24, padY = 20;
-  const min = Math.min(...values), max = Math.max(...values);
-  const spread = Math.max(10, max - min);
-  const yMin = Math.max(0, min - spread * .2), yMax = max + spread * .2;
-  const x = (i) => padX + (values.length === 1 ? (width - 2 * padX) / 2 : i * (width - 2 * padX) / (values.length - 1));
-  const y = (v) => height - padY - ((v - yMin) / (yMax - yMin || 1)) * (height - 2 * padY);
-  const points = values.map((v, i) => `${x(i)},${y(v)}`).join(" ");
-  const area = `${padX},${height - padY} ${points} ${x(values.length - 1)},${height - padY}`;
-  const grids = [0, .5, 1].map((t) => {
-    const gy = padY + t * (height - 2 * padY);
-    const gv = yMax - t * (yMax - yMin);
-    return `<line x1="${padX}" y1="${gy}" x2="${width - padX}" y2="${gy}" class="chart-grid"/><text x="0" y="${gy + 3}" class="chart-axis">${Math.round(gv)}</text>`;
+  el["past-list"].innerHTML = matches.map((match) => {
+    const participant = match.participants.find((p) => Number(p.teamKey) === state.selectedTeamKey);
+    const red = Number(participant.station) < 20;
+    const allies = match.participants.filter((p) => (Number(p.station) < 20) === red).map(teamCodeFromParticipant);
+    const opponents = match.participants.filter((p) => (Number(p.station) < 20) !== red).map(teamCodeFromParticipant);
+    return `<div class="past-row"><strong>${escapeHtml(matchLabel(match))}</strong><span>${escapeHtml(allies.join(" · "))} 対 ${escapeHtml(opponents.join(" · "))}</span><strong>${formatNumber(red ? match.redScore : match.blueScore)} : ${formatNumber(red ? match.blueScore : match.redScore)}</strong></div>`;
   }).join("");
-  const dots = values.map((v, i) => `<circle cx="${x(i)}" cy="${y(v)}" r="4" class="chart-dot"><title>Match ${i + 1}: ${v} points</title></circle>`).join("");
-
-  el["trend-chart"].innerHTML = `<div class="chart-wrap">
-    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Alliance score by played match">
-      <defs><linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#67e8f9" stop-opacity=".22"/><stop offset="100%" stop-color="#67e8f9" stop-opacity="0"/></linearGradient></defs>
-      ${grids}<polygon points="${area}" class="chart-area"/><polyline points="${points}" class="chart-line"/>${dots}
-    </svg>
-    <div class="chart-caption"><span>First played match</span><span>${values.length} match${values.length === 1 ? "" : "es"}</span><span>Latest</span></div>
-  </div>`;
-}
-
-function renderMatches(ranking) {
-  const key = Number(ranking.teamKey);
-  const matches = [...state.data.matches]
-    .filter((m) => (m.participants || []).some((p) => Number(p.teamKey) === key))
-    .sort((a, b) => matchSortKey(a) - matchSortKey(b));
-  const played = matches.filter((m) => m.played).slice(-4).reverse();
-  const upcoming = matches.filter((m) => !m.played).slice(0, 4);
-  const shown = [...upcoming, ...played].slice(0, 8);
-
-  if (!shown.length) {
-    el["team-matches"].innerHTML = `<div class="trend-empty">No matches found for this team.</div>`;
-    return;
-  }
-  el["team-matches"].innerHTML = shown.map((m) => matchRow(m, key)).join("");
-}
-
-function matchRow(match, selectedKey) {
-  const participants = match.participants || [];
-  const selected = participants.find((p) => Number(p.teamKey) === selectedKey);
-  const onRed = Number(selected?.station) < 20;
-  const own = participants.filter((p) => (Number(p.station) < 20) === onRed).map((p) => p.country || p.teamKey);
-  const other = participants.filter((p) => (Number(p.station) < 20) !== onRed).map((p) => p.country || p.teamKey);
-  const ownScore = onRed ? match.redScore : match.blueScore;
-  const otherScore = onRed ? match.blueScore : match.redScore;
-  const time = match.scheduledTime ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(match.scheduledTime)) : "Time TBD";
-  return `<div class="match-row">
-    <div class="match-label"><strong>${escapeHtml(String(match.name || "Match").replace("Qualification", "Ranking"))}</strong><span>${escapeHtml(time)}${match.field ? ` · F${match.field}` : ""}</span></div>
-    <div class="match-teams"><strong>${escapeHtml(own.join(" · "))}</strong><small>with · vs ${escapeHtml(other.join(" · "))}</small></div>
-    <div class="match-score">${match.played ? `<strong>${formatNumber(ownScore)}</strong><span>other ${formatNumber(otherScore)}</span>` : `<strong>—</strong><span>upcoming</span>`}</div>
-  </div>`;
 }
 
 function renderLeaderboard() {
   if (!state.data) return;
-  let rows = state.data.rankings.map((r) => ({ ranking: r, metric: state.metrics.get(Number(r.teamKey)) || {} }));
-  if (state.leaderQuery) rows = rows.filter(({ ranking }) => `${teamCode(ranking)} ${teamName(ranking)}`.toLowerCase().includes(state.leaderQuery));
-
-  const sorters = {
-    official: (a, b) => num(a.ranking.rank, 9999) - num(b.ranking.rank, 9999),
-    epa: (a, b) => num(b.metric.epa, -Infinity) - num(a.metric.epa, -Infinity),
-    rankingScore: (a, b) => num(b.ranking.rankingScore, -Infinity) - num(a.ranking.rankingScore, -Infinity),
-    highestScore: (a, b) => num(b.ranking.highestScore, -Infinity) - num(a.ranking.highestScore, -Infinity),
-    climbPoints: (a, b) => num(b.ranking.climbPoints, -Infinity) - num(a.ranking.climbPoints, -Infinity),
-    form: (a, b) => num(b.metric.form, -Infinity) - num(a.metric.form, -Infinity),
+  const rated = [...state.roster].sort((a, b) => (state.ratings.get(Number(b.teamKey))?.rating || 0) - (state.ratings.get(Number(a.teamKey))?.rating || 0));
+  const predictionRanks = new Map(rated.map((team, index) => [Number(team.teamKey), index + 1]));
+  const rows = state.roster
+    .filter((team) => searchText(team).includes(state.leaderQuery))
+    .map((team) => ({ team, metric: state.ratings.get(Number(team.teamKey)) || {} }));
+  const compare = {
+    prediction: (a, b) => (b.metric.rating || 0) - (a.metric.rating || 0),
+    official: (a, b) => nullableRank(a.team.rank) - nullableRank(b.team.rank),
+    epa: (a, b) => nullableValue(b.metric.epa) - nullableValue(a.metric.epa),
+    previous: (a, b) => nullableRank(a.metric.previousRank) - nullableRank(b.metric.previousRank),
   };
-  rows.sort(sorters[state.sort] || sorters.official);
-
-  el["leaderboard-body"].innerHTML = rows.map(({ ranking, metric }) => {
-    const selected = Number(ranking.teamKey) === Number(state.selectedTeamKey);
-    return `<tr data-team-key="${Number(ranking.teamKey)}" class="${selected ? "selected" : ""}">
-      <td>#${formatNumber(ranking.rank)}</td>
-      <td><div class="team-cell"><span class="team-code">${escapeHtml(teamCode(ranking))}</span><span class="team-name">${escapeHtml(teamName(ranking))}</span></div></td>
+  rows.sort((a, b) => (compare[state.sort] || compare.prediction)(a, b) || displayName(a.team).localeCompare(displayName(b.team), "ja"));
+  el["leaderboard-body"].innerHTML = rows.map(({ team, metric }) => {
+    const key = Number(team.teamKey);
+    const validPrediction = metric.historical || metric.modelGames;
+    return `<tr data-team-key="${key}" class="${key === state.selectedTeamKey ? "selected" : ""}" tabindex="0" aria-label="${escapeHtml(displayName(team))}を選択">
+      <td>${validPrediction ? `#${predictionRanks.get(key)}` : "—"}</td>
+      <td><div class="table-team"><b>${escapeHtml(teamCode(team))}</b><span>${escapeHtml(displayName(team))}</span></div></td>
+      <td>${team.rank == null ? "—" : `#${formatNumber(team.rank)}`}</td>
       <td>${formatDecimal(metric.epa)}</td>
-      <td>${metric.epaRank ? `#${metric.epaRank}` : "—"}</td>
-      <td>${formatNumber(ranking.rankingScore)}</td>
-      <td>${formatNumber(ranking.highestScore)}</td>
-      <td>${formatNumber(ranking.climbPoints)}</td>
-      <td>${formatNumber(ranking.played)}</td>
-      <td class="${Number(metric.form) > 0 ? "value-positive" : Number(metric.form) < 0 ? "value-negative" : ""}">${signed(metric.form)}</td>
+      <td>${metric.previousRank == null ? "—" : `#${formatNumber(metric.previousRank)}`}</td>
+      <td>${validPrediction ? signed(metric.rating) : "—"}</td>
+      <td>${formatNumber(team.played)}</td>
     </tr>`;
   }).join("");
-
   el["leaderboard-body"].querySelectorAll("tr[data-team-key]").forEach((row) => {
     row.addEventListener("click", () => selectTeam(Number(row.dataset.teamKey)));
+    row.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        selectTeam(Number(row.dataset.teamKey));
+      }
+    });
   });
 }
 
-function getSelectedRanking() {
-  return state.data?.rankings.find((r) => Number(r.teamKey) === Number(state.selectedTeamKey));
+function selectedTeam() {
+  return state.roster.find((team) => Number(team.teamKey) === state.selectedTeamKey);
 }
-function teamCode(r) { return String(r?.team?.country || r?.country || r?.team?.countryCode || r?.teamKey || "—").toUpperCase(); }
-function teamName(r) { return String(r?.team?.shortName || r?.team?.name || r?.team?.countryName || teamCode(r)); }
-function statCard(label, value, sub, highlight = false) { return `<article class="card stat-card ${highlight ? "highlight" : ""}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong><small>${escapeHtml(String(sub || ""))}</small></article>`; }
-function formatNumber(value) { const n = Number(value); return Number.isFinite(n) ? new Intl.NumberFormat().format(n) : "—"; }
-function formatDecimal(value) { const n = Number(value); return Number.isFinite(n) ? n.toFixed(1) : "—"; }
-function signed(value) { const n = Number(value); return Number.isFinite(n) ? `${n > 0 ? "+" : ""}${n.toFixed(1)}` : "—"; }
-function ordinal(value) { const n = Number(value); if (!Number.isFinite(n)) return "—"; const mod100 = n % 100; const suffix = mod100 >= 11 && mod100 <= 13 ? "th" : ({1:"st",2:"nd",3:"rd"}[n % 10] || "th"); return `${n}${suffix}`; }
-function num(v, fallback = 0) { const n = Number(v); return Number.isFinite(n) ? n : fallback; }
-function matchSortKey(m) { if (m.scheduledTime) return new Date(m.scheduledTime).getTime(); const n = Number(String(m.name || "").match(/(\d+)/)?.[1]); return Number.isFinite(n) ? n : 0; }
-function performanceStatus(percentile, officialRank, total) {
-  const pct = Number(percentile);
-  if (Number.isFinite(pct) && pct >= 90) return "Elite scoring pace · top 10% EPA";
-  if (Number.isFinite(pct) && pct >= 75) return "Strong scoring pace · top quartile EPA";
-  const rankPct = total ? Number(officialRank) / total : 1;
-  if (rankPct <= .25) return "Officially on a strong qualification pace";
-  if (Number.isFinite(pct) && pct >= 50) return "Above-average scoring pace";
-  return "Still building sample size / pace";
+function teamMatches() {
+  return state.data?.matches.filter((match) => (match.participants || []).some((p) => Number(p.teamKey) === state.selectedTeamKey)) || [];
 }
-function setError(message) { el["error-box"].hidden = !message; el["error-box"].textContent = message; }
-function escapeHtml(value) { return String(value ?? "").replace(/[&<>'"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c])); }
+function searchText(record) {
+  return `${teamCode(record)} ${displayName(record)} ${record?.team?.name || ""}`.toLocaleLowerCase("ja");
+}
+function matchSearchText(match) {
+  return `${match.name || ""} ${match.id || ""} ${matchLabel(match)} ${(match.participants || []).map((p) => searchText(p)).join(" ")}`.toLocaleLowerCase("ja");
+}
+function teamCodeFromParticipant(participant) {
+  return String(participant.country || state.roster.find((team) => Number(team.teamKey) === Number(participant.teamKey))?.team?.country || "—").toUpperCase();
+}
+function teamChip(participant) {
+  const code = teamCodeFromParticipant(participant);
+  const selected = Number(participant.teamKey) === state.selectedTeamKey;
+  return `<span class="team-chip ${selected ? "selected" : ""}"><b>${escapeHtml(code)}</b><small>${escapeHtml(displayName(participant))}</small></span>`;
+}
+function matchLabel(match) {
+  const name = String(match.name || `Match ${match.id || ""}`);
+  return name.replace(/^Ranking Match\s*/i, "ランキング戦 ").replace(/^Qualification Match\s*/i, "予選 ").replace(/^Match\s*/i, "試合 ");
+}
+function matchTime(match) {
+  if (!match.scheduledTime) return "時刻未定";
+  const date = new Date(match.scheduledTime);
+  return Number.isNaN(date.getTime()) ? "時刻未定" : `${dateFormat.format(date)} JST`;
+}
+function sortMatches(a, b) {
+  const aTime = Date.parse(a.scheduledTime);
+  const bTime = Date.parse(b.scheduledTime);
+  return (Number.isFinite(aTime) ? aTime : Infinity) - (Number.isFinite(bTime) ? bTime : Infinity)
+    || Number(a.id || 0) - Number(b.id || 0);
+}
+function statCard(label, value, note, emphasis = false) {
+  return `<div class="stat-card ${emphasis ? "emphasis" : ""}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong><small>${escapeHtml(note)}</small></div>`;
+}
+function formatNumber(value) {
+  return value == null || !Number.isFinite(Number(value)) ? "—" : numberFormat.format(Number(value));
+}
+function formatDecimal(value) {
+  return value == null || !Number.isFinite(Number(value)) ? "—" : Number(value).toFixed(1);
+}
+function signed(value) {
+  return Number.isFinite(value) ? `${value > 0 ? "+" : ""}${value.toFixed(2)}` : "—";
+}
+function nullableRank(value) { return value == null || !Number.isFinite(Number(value)) ? Infinity : Number(value); }
+function nullableValue(value) { return value == null || !Number.isFinite(Number(value)) ? -Infinity : Number(value); }
+function setError(message) {
+  el["error-box"].hidden = !message;
+  el["error-box"].textContent = message;
+}
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
+}
 
 const hashCode = new URLSearchParams(location.hash.replace(/^#/, "")).get("team");
 if (hashCode) state.selectedCode = hashCode.toUpperCase();

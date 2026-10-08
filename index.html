@@ -1,161 +1,65 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Live FIRST Global Challenge analytics powered by official FIRST Global results data." />
-    <meta name="theme-color" content="#071018" />
-    <title>FGC Stats</title>
+    <meta name="description" content="FIRST Global Challenge の対戦表、試合予測、FGC EPA を日本語で確認できる独立した分析サイト。" />
+    <meta name="theme-color" content="#343a40" />
+    <title>FGC Stats | 対戦表と試合予測</title>
     <link rel="preconnect" href="https://api.first.global" crossorigin />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="shell">
-      <header class="topbar">
-        <a class="brand" href="#" aria-label="FGC Stats home">
-          <span class="brand-mark">FG</span>
-          <span>
-            <strong>FGC Stats</strong>
-            <small>live event analytics</small>
-          </span>
-        </a>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="#top" aria-label="FGC Stats トップ"><span class="brand-symbol">F</span><span>FGC Stats</span></a>
+        <nav aria-label="メインナビゲーション">
+          <a href="#predictions">試合予測</a>
+          <a href="#teams">チーム</a>
+          <a href="#model">予測について</a>
+        </nav>
         <div class="topbar-actions">
-          <label class="year-control" aria-label="Season">
-            <span>Season</span>
-            <select id="year-select">
-              <option value="2026">2026</option>
-              <option value="2025">2025</option>
-              <option value="2024">2024</option>
-              <option value="2023">2023</option>
-              <option value="2022">2022</option>
-            </select>
-          </label>
-          <a class="official-link" href="https://results.first.global" target="_blank" rel="noreferrer">Official results ↗</a>
+          <label class="season-control">シーズン <select id="year-select"><option value="2026">2026</option><option value="2025">2025</option><option value="2024">2024</option><option value="2023">2023</option><option value="2022">2022</option></select></label>
+          <a class="official-link" href="https://results.first.global" target="_blank" rel="noreferrer">公式結果 ↗</a>
         </div>
-      </header>
+      </div>
+    </header>
 
-      <main>
-        <section class="hero">
-          <div>
-            <div class="eyebrow"><span class="live-dot"></span><span id="event-state">Loading live data</span></div>
-            <h1>FIRST Global, without the guesswork.</h1>
-            <p>Official standings plus schedule-adjusted FGC EPA, form, match history, and live team tracking.</p>
-          </div>
-          <div class="refresh-block">
-            <span>Official data</span>
-            <strong id="last-updated">—</strong>
-            <button id="refresh-button" type="button">Refresh now</button>
-          </div>
-        </section>
+    <main id="top" class="shell">
+      <section class="page-heading">
+        <div>
+          <p class="eyebrow">FIRST GLOBAL CHALLENGE · EVENT ANALYTICS</p>
+          <h1>対戦表と試合予測</h1>
+          <p class="lead">公開された対戦表から、各試合の赤・青アライアンスの勝率を確認できます。</p>
+        </div>
+        <div class="update-panel"><span id="event-state">データを読み込み中…</span><small>最終確認 <time id="last-updated">—</time></small><button id="refresh-button" type="button">データを更新</button></div>
+      </section>
 
-        <section class="team-picker card">
-          <div>
-            <span class="section-kicker">Track a team</span>
-            <h2 id="selected-team-title">Japan</h2>
-          </div>
-          <div class="picker-controls">
-            <input id="team-search" type="search" placeholder="Search country or code…" autocomplete="off" />
-            <select id="team-select" aria-label="Select team"></select>
-          </div>
-        </section>
+      <div id="error-box" class="error-box" role="alert" hidden></div>
+      <div id="data-note" class="data-note" role="status"></div>
 
-        <section id="team-summary" class="summary-grid" aria-live="polite"></section>
+      <section id="team" class="team-section panel">
+        <div class="section-title"><div><p class="eyebrow">TEAM OVERVIEW</p><h2 id="selected-team-title">日本</h2></div><span class="pill">選択中のチーム</span></div>
+        <div class="team-picker"><label>チームを探す<input id="team-search" type="search" placeholder="国名・3文字コードで検索" autocomplete="off" /></label><label>表示チーム<select id="team-select" aria-label="表示するチーム"></select></label></div>
+        <div id="team-summary" class="summary-grid" aria-live="polite"></div>
+      </section>
 
-        <section class="two-col">
-          <article class="card feature-card">
-            <div class="section-head">
-              <div>
-                <span class="section-kicker">Schedule-adjusted</span>
-                <h2>FGC EPA</h2>
-              </div>
-              <span class="beta-badge">BETA</span>
-            </div>
-            <div id="epa-feature" class="epa-feature"></div>
-          </article>
+      <section id="predictions" class="predictions-section">
+        <div class="section-title"><div><p class="eyebrow">MATCH PREDICTIONS</p><h2>試合予測</h2><p class="section-description">対戦表の参加国と過去の試合データから計算した推定値です。</p></div><span id="prediction-source" class="source-badge">計算中</span></div>
+        <div id="featured-prediction"></div>
+        <div class="list-heading"><h3>対戦スケジュール <span id="schedule-count"></span></h3><div class="schedule-controls"><div class="segmented" role="group" aria-label="表示する試合"><button id="show-team" class="active" type="button">選択チーム</button><button id="show-all" type="button">全試合</button></div><input id="match-search" type="search" placeholder="試合番号・国名で検索" aria-label="試合を検索" autocomplete="off" /></div></div>
+        <div id="prediction-list" class="prediction-list"></div>
+        <button id="show-more" class="show-more" type="button" hidden>さらに表示</button>
+      </section>
 
-          <article class="card">
-            <div class="section-head">
-              <div>
-                <span class="section-kicker">Recent performance</span>
-                <h2>Alliance score trend</h2>
-              </div>
-            </div>
-            <div id="trend-chart" class="trend-chart"></div>
-          </article>
-        </section>
+      <section class="panel recent-section"><div class="section-title"><div><p class="eyebrow">RESULTS</p><h2>選択チームの試合結果</h2></div></div><div id="past-list" class="past-list"></div></section>
 
-        <section class="two-col lower">
-          <article class="card">
-            <div class="section-head">
-              <div>
-                <span class="section-kicker">Selected team</span>
-                <h2>Matches</h2>
-              </div>
-            </div>
-            <div id="team-matches" class="match-list"></div>
-          </article>
+      <section id="teams" class="panel leaderboard-section"><div class="section-title"><div><p class="eyebrow">TEAMS</p><h2>チーム一覧</h2><p class="section-description">公式順位と独自の予測評価を並べて確認できます。</p></div><div class="leader-controls"><input id="leader-search" type="search" placeholder="チームを検索" aria-label="チームを検索" autocomplete="off" /><select id="sort-select" aria-label="チーム一覧の並び順"><option value="prediction">予測評価順</option><option value="official">公式順位順</option><option value="epa">FGC EPA順</option><option value="previous">前年順位順</option></select></div></div><div class="table-wrap"><table><thead><tr><th>予測順位</th><th>チーム</th><th>公式順位</th><th>FGC EPA</th><th>前年順位</th><th>予測評価</th><th>試合数</th></tr></thead><tbody id="leaderboard-body"></tbody></table></div></section>
 
-          <article class="card">
-            <div class="section-head">
-              <div>
-                <span class="section-kicker">Model notes</span>
-                <h2>What “EPA” means here</h2>
-              </div>
-            </div>
-            <div class="model-copy">
-              <p>FGC EPA estimates the points a team contributes to a three-team regional alliance. It fits every played ranking match simultaneously and shrinks early estimates toward the event average.</p>
-              <p>It is intentionally separate from the official ranking score. The official rank answers <em>who is advancing</em>; EPA tries to answer <em>who is actually scoring</em>.</p>
-              <p class="muted">This is an independent analytics project, not an official FIRST Global metric.</p>
-            </div>
-          </article>
-        </section>
+      <section id="model" class="model-panel"><h2>予測の見方</h2><p>2026 年の試合前は、2025 年と 2024 年の国別 EPA を標準化して勝率を推定します。2026 年の結果が増えると、今年の EPA を徐々に反映します。勝率は参考値で、公式の予測ではありません。</p><p>得点予測は今年の試合データが十分に集まってから表示します。FGC EPA はランキング戦の得点から推定した、各チームの得点貢献度です。公式順位とは計算方法が異なります。</p></section>
+    </main>
 
-        <section class="card leaderboard-card">
-          <div class="section-head leaderboard-head">
-            <div>
-              <span class="section-kicker">All teams</span>
-              <h2>Live leaderboard</h2>
-            </div>
-            <div class="leader-controls">
-              <input id="leader-search" type="search" placeholder="Filter teams…" autocomplete="off" />
-              <select id="sort-select" aria-label="Sort leaderboard">
-                <option value="official">Official rank</option>
-                <option value="epa">FGC EPA</option>
-                <option value="rankingScore">Ranking score</option>
-                <option value="highestScore">Highest score</option>
-                <option value="climbPoints">Climb points</option>
-                <option value="form">Recent form</option>
-              </select>
-            </div>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Team</th>
-                  <th>FGC EPA</th>
-                  <th>EPA rank</th>
-                  <th>Ranking score</th>
-                  <th>High</th>
-                  <th>Climb</th>
-                  <th>Played</th>
-                  <th>Form</th>
-                </tr>
-              </thead>
-              <tbody id="leaderboard-body"></tbody>
-            </table>
-          </div>
-        </section>
-
-        <div id="error-box" class="error-box" hidden></div>
-      </main>
-
-      <footer>
-        <span>Data: FIRST Global public results API</span>
-        <span>Auto-refresh every 60 seconds</span>
-      </footer>
-    </div>
+    <footer><div class="shell footer-inner"><span>データ: FIRST Global 公開結果 API · 60 秒ごとに更新</span><span>独立した分析サイト · FIRST Global / Statbotics の公式サイトではありません</span></div></footer>
     <script type="module" src="./src/app.js"></script>
   </body>
 </html>

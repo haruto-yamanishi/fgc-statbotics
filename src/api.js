@@ -13,12 +13,12 @@ export async function fetchSeason(year, signal) {
   });
 
   if (!response.ok) {
-    throw new Error(`FIRST Global API returned ${response.status}`);
+    throw new Error(`FIRST Global API が HTTP ${response.status} を返しました`);
   }
 
   const data = await response.json();
   if (!data || !Array.isArray(data.rankings) || !Array.isArray(data.matches)) {
-    throw new Error("FIRST Global API returned an unexpected payload");
+    throw new Error("FIRST Global API のデータ形式が予想と異なります");
   }
   return data;
 }

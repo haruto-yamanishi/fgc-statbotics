@@ -1,64 +1,36 @@
 # FGC Stats
 
-A lightweight Statbotics-style analytics dashboard for the **FIRST Global Challenge**.
+FIRST Global Challenge の公開結果 API を使った、対戦表・試合予測・チーム分析の非公式ダッシュボードです。画面は日本語です。
 
-It reads live event data from FIRST Global's public results API and adds an independent schedule-adjusted metric called **FGC EPA** alongside the official rankings.
+## できること
 
-## What it shows
+- 公開済み対戦表から、選択チームの次の試合と全試合の予定を表示
+- 赤・青アライアンスの予測勝率と、データが集まった後の予測得点を表示
+- 公式順位と独自指標 FGC EPA を表示
+- チーム検索、試合検索、シーズン切り替え
+- 60 秒ごとに公式データを再取得
 
-- Official rank, ranking score, high score, climb points, and matches played
-- FGC EPA and EPA rank for every team
-- Recent schedule-adjusted form
-- Team score trend
-- Recent and upcoming matches
-- Searchable/sortable live leaderboard
-- 2022–2026 season switcher
-- Automatic refresh every 60 seconds
+2026 年の公式順位は大会開始前には空です。その間も対戦表から参加チームを作成し、2025 年と 2024 年の国別 EPA を基に暫定勝率を計算します。過去年のチーム ID は変わるため、国コードで対応付けます。今年の結果が増えると、今年の EPA を徐々に反映します。得点予測は今年のランキング戦が 6 試合以上終了してから表示します。予測は参考値で、FIRST Global や Statbotics の公式指標ではありません。
 
-The default tracked team is `JPN`.
+## ローカルで起動
 
-## FGC EPA
-
-FGC matches use multi-team alliances, so raw alliance scores are heavily schedule-dependent. FGC EPA fits every played ranking alliance simultaneously as an additive team-contribution model.
-
-For alliance `a` with teams `T_a`:
-
-```text
-score_a ≈ Σ EPA_team
-          team ∈ T_a
-```
-
-Because the live event begins with very little data, the implementation uses ridge regularization around the event-wide average team contribution rather than ordinary least squares. This keeps one lucky early match from exploding a team's rating.
-
-This metric is **experimental and independent**. It is not an official FIRST Global statistic, and the official ranking remains the source of truth for advancement.
-
-## Run locally
-
-No dependencies or build step are required.
+依存パッケージやビルドは不要です。
 
 ```bash
 npm test
 npm run serve
 ```
 
-Then open `http://localhost:8080`.
+[http://localhost:8080](http://localhost:8080) を開いてください。 `index.html` を `file://` で直接開くとブラウザーの制限で API を取得できません。
 
-Do not open `index.html` directly with `file://`; use a local HTTP server so browser CORS behavior matches deployment.
+## データ
 
-## Data source
+[FIRST Global 公開結果 API](https://api.first.global/v1?year=2026&excludeMatchDetails=true) からブラウザーが直接読み込みます。
 
-The official results frontend maintained by The Orange Alliance reads from:
+## 公開
 
-```text
-https://api.first.global/v1?year=2026&excludeMatchDetails=true
-```
+GitHub Pages のワークフローを同梱しています。GitHub の **Settings → Pages → Source: GitHub Actions** を有効にすると `main` への push で公開できます。
 
-The dashboard uses that same public read endpoint in the browser.
+## ライセンス
 
-## Deploy
-
-The repository includes a GitHub Pages workflow. Create a GitHub repository, push `main`, then enable **Settings → Pages → Source: GitHub Actions**.
-
-## License
-
-MIT. FIRST®, FIRST Global, and related marks belong to their respective owners. This project is not affiliated with FIRST Global.
+MIT。FIRST®、FIRST Global、Statbotics とは提携していません。
