@@ -14,4 +14,4 @@ jobs:
         with:
           node-version: '22'
       - run: npm test
-      - run: node scripts/check-opponent-aware.mjs
+      - run: node scripts/experiment-bayesian-2026.mjs
