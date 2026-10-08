@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { completedRankingScores, projectedFinalRankingScores, rankingScore } from "../src/ranking-score.js";
+import { completedRankingScores, projectedFinalRankingScores, projectedRankingPositions, rankingScore } from "../src/ranking-score.js";
 
 test("2026ランキングスコアは初戦を保持し、2試合目から最低得点を除いた平均", () => {
   assert.equal(rankingScore([]), null);
@@ -40,4 +40,10 @@ test("全チームの最終予測ランキングスコアは実績と残りの�
   assert.equal(scores.get(1), 40); // 0-point red card stays; the 50-point result is dropped.
   assert.equal(scores.get(2), 50); // 10 is dropped from 20, 60, 70, 10.
   assert.equal(scores.get(3), null);
+});
+
+test("予測順位は全チームを対象に表示桁で同点を扱い、スコアなしは除外する", () => {
+  const positions = projectedRankingPositions(new Map([[1, 100.04], [2, 95], [3, 100.02], [4, null], [5, 80]]));
+  assert.deepEqual([...positions], [[1, 1], [3, 1], [2, 3], [5, 4]]);
+  assert.equal(positions.get(2), 3); // A search for team 2 still shows its overall rank.
 });

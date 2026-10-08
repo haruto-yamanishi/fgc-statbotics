@@ -67,6 +67,8 @@ const messages = {
     rankChangeLabel: "前年比 {movement}", predictedBadge: "{code}予測 {outcome}", even: "五分",
     predictedRankingScore: "予測ランキングスコア", rankingScoreAfterMatch: "この試合後の推定", rankingScoreUnavailable: "予測スコアなし",
     rankingScoreChange: "{change} 点", officialRankingScore: "公式ランキングスコア", win: "WIN", lose: "LOSE", draw: "DRAW",
+    currentRankingScore: "暫定ランキングスコア", currentRankingScoreNote: "終了したランキング戦から計算", projectedFinalScoreNote: "実績と残り試合の予測から計算",
+    projectedFinalRank: "最終予測順位", projectedRankNote: "全参加チーム中・同点は同順位",
     unknown: "不明", apiHttp: "HTTP {status}", apiInvalid: "FIRST Global API のデータ形式が予想と異なります",
   },
   en: {
@@ -127,6 +129,8 @@ const messages = {
     rankChangeLabel: "Year over year {movement}", predictedBadge: "{code}predicted {outcome}", even: "Even",
     predictedRankingScore: "Projected ranking score", rankingScoreAfterMatch: "Estimate after this match", rankingScoreUnavailable: "No projected score",
     rankingScoreChange: "{change} pts", officialRankingScore: "Official ranking score", win: "WIN", lose: "LOSE", draw: "DRAW",
+    currentRankingScore: "Current ranking score", currentRankingScoreNote: "Calculated from completed ranking matches", projectedFinalScoreNote: "Completed results plus remaining projections",
+    projectedFinalRank: "Projected final rank", projectedRankNote: "Among all teams; ties share a rank",
     unknown: "Unknown", apiHttp: "HTTP {status}", apiInvalid: "Unexpected FIRST Global API response",
   },
   es: {
@@ -187,6 +191,8 @@ const messages = {
     rankChangeLabel: "Cambio anual {movement}", predictedBadge: "{code}pronóstico: {outcome}", even: "Igualado",
     predictedRankingScore: "Puntuación de clasificación prevista", rankingScoreAfterMatch: "Estimación tras este partido", rankingScoreUnavailable: "Sin puntuación prevista",
     rankingScoreChange: "{change} pts", officialRankingScore: "Puntuación oficial de clasificación", win: "GANA", lose: "PIERDE", draw: "EMPATE",
+    currentRankingScore: "Puntuación actual de clasificación", currentRankingScoreNote: "Calculada con los partidos terminados", projectedFinalScoreNote: "Resultados y partidos restantes previstos",
+    projectedFinalRank: "Posición final prevista", projectedRankNote: "Entre todos los equipos; empates comparten posición",
     unknown: "Desconocido", apiHttp: "HTTP {status}", apiInvalid: "Respuesta inesperada de la API de FIRST Global",
   },
   fr: {
@@ -247,6 +253,8 @@ const messages = {
     rankChangeLabel: "Évolution annuelle {movement}", predictedBadge: "{code}prévision : {outcome}", even: "Équilibré",
     predictedRankingScore: "Score de classement prévu", rankingScoreAfterMatch: "Estimation après ce match", rankingScoreUnavailable: "Aucun score prévu",
     rankingScoreChange: "{change} pts", officialRankingScore: "Score officiel de classement", win: "VICTOIRE", lose: "DÉFAITE", draw: "NUL",
+    currentRankingScore: "Score de classement actuel", currentRankingScoreNote: "Calculé avec les matchs terminés", projectedFinalScoreNote: "Résultats et projections des matchs restants",
+    projectedFinalRank: "Rang final prévu", projectedRankNote: "Parmi toutes les équipes ; ex æquo au même rang",
     unknown: "Inconnu", apiHttp: "HTTP {status}", apiInvalid: "Réponse inattendue de l'API FIRST Global",
   },
   pt: {
@@ -307,6 +315,8 @@ const messages = {
     rankChangeLabel: "Variação anual {movement}", predictedBadge: "{code}previsão: {outcome}", even: "Equilibrado",
     predictedRankingScore: "Pontuação de classificação prevista", rankingScoreAfterMatch: "Estimativa após esta partida", rankingScoreUnavailable: "Sem pontuação prevista",
     rankingScoreChange: "{change} pts", officialRankingScore: "Pontuação oficial de classificação", win: "VENCE", lose: "PERDE", draw: "EMPATE",
+    currentRankingScore: "Pontuação atual de classificação", currentRankingScoreNote: "Calculada com as partidas concluídas", projectedFinalScoreNote: "Resultados e projeções restantes",
+    projectedFinalRank: "Posição final prevista", projectedRankNote: "Entre todas as equipes; empates dividem a posição",
     unknown: "Desconhecido", apiHttp: "HTTP {status}", apiInvalid: "Resposta inesperada da API FIRST Global",
   },
   zh: {
@@ -367,6 +377,8 @@ const messages = {
     rankChangeLabel: "同比 {movement}", predictedBadge: "{code}预测 {outcome}", even: "五五开",
     predictedRankingScore: "预测排名分", rankingScoreAfterMatch: "本场后的估计", rankingScoreUnavailable: "暂无预测分",
     rankingScoreChange: "{change} 分", officialRankingScore: "官方排名分", win: "获胜", lose: "失利", draw: "平局",
+    currentRankingScore: "当前排名分", currentRankingScoreNote: "根据已完成的排名赛计算", projectedFinalScoreNote: "根据已完成比赛和剩余预测计算",
+    projectedFinalRank: "预测最终排名", projectedRankNote: "所有参赛队伍中；同分并列",
     unknown: "未知", apiHttp: "HTTP {status}", apiInvalid: "FIRST Global API 返回了意外的数据格式",
   },
   ko: {
@@ -427,6 +439,8 @@ const messages = {
     rankChangeLabel: "전년 대비 {movement}", predictedBadge: "{code}예측 {outcome}", even: "반반",
     predictedRankingScore: "예상 순위 점수", rankingScoreAfterMatch: "이 경기 후 추정치", rankingScoreUnavailable: "예상 점수 없음",
     rankingScoreChange: "{change}점", officialRankingScore: "공식 순위 점수", win: "승리", lose: "패배", draw: "무승부",
+    currentRankingScore: "현재 순위 점수", currentRankingScoreNote: "완료된 순위 경기 기준", projectedFinalScoreNote: "완료된 결과와 남은 경기 예측 반영",
+    projectedFinalRank: "예상 최종 순위", projectedRankNote: "전체 참가팀 기준 · 동점은 공동 순위",
     unknown: "알 수 없음", apiHttp: "HTTP {status}", apiInvalid: "FIRST Global API 데이터 형식이 예상과 다릅니다",
   },
 };

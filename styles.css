@@ -186,6 +186,8 @@ tbody tr.selected { background: #eff6ff; }
 .table-team { display: flex; align-items: center; gap: 9px; }
 .table-team b { display: inline-grid; place-items: center; min-width: 40px; padding: 3px 5px; border-radius: 4px; background: #e8edf4; font-size: 10px; }
 .table-team span { overflow: hidden; text-overflow: ellipsis; }
+.projected-score-cell { display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 8px; }
+.projected-rank { padding: 2px 5px; border-radius: 4px; background: #eff6ff; color: #1d4ed8; font-size: 11px; }
 .model-panel { margin: 0 0 38px; padding: 18px 20px; border-left: 3px solid #94a3b8; background: #f1f5f9; color: #475467; }
 .model-panel h2 { margin-bottom: 8px; font-size: 17px; color: #344054; }
 .model-panel p { margin: 0 0 8px; font-size: 12px; line-height: 1.7; }

@@ -50,3 +50,15 @@ export function projectedFinalRankingScores(matches, teamKeys, predict) {
   }
   return new Map([...scores].map(([key, entries]) => [key, rankingScore(entries)]));
 }
+
+export function projectedRankingPositions(scores) {
+  const ranked = [...scores]
+    .filter(([, score]) => score != null && Number.isFinite(score))
+    .map(([key, score]) => [key, Math.round(score * 10) / 10])
+    .sort((a, b) => b[1] - a[1]);
+  const positions = new Map();
+  ranked.forEach(([key, score], index) => {
+    positions.set(key, index && score === ranked[index - 1][1] ? positions.get(ranked[index - 1][0]) : index + 1);
+  });
+  return positions;
+}
