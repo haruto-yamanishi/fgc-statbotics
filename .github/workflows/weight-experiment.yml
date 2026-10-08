@@ -14,5 +14,4 @@ jobs:
         with:
           node-version: '22'
       - run: npm test
-      - run: node scripts/compare-live-weights.mjs
-      - run: node scripts/search-historical-cold-start.mjs
+      - run: node scripts/probe-fgc-archives.mjs
