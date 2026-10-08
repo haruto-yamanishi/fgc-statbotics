@@ -1,8 +1,8 @@
 import { fetchSeason } from "./api.js?v=20261008-4";
-import { predictionAccuracy } from "./accuracy.js";
+import { ACCURACY_WINDOW_MATCHES, predictionAccuracy } from "./accuracy.js?v=20261008-7";
 import { buildOpponentAwareModel } from "./opponent-aware.js";
 import { isOfficialMatch } from "./epa.js";
-import { getLocaleTag, localeTags, resolveLocale, setLocale, t, translateStatic } from "./i18n.js?v=20261008-5";
+import { getLocaleTag, localeTags, resolveLocale, setLocale, t, translateStatic } from "./i18n.js?v=20261008-7";
 import { buildRoster, buildSeasonModel, matchKey, predictMatch, teamCode, teamName } from "./predict.js?v=20261008-5";
 import { completedRankingScores, countedRankingParticipant, isRankingMatch, projectedFinalRankingScores, projectedRankingPositions, rankingScore } from "./ranking-score.js";
 import { allianceOutcome, projectedOutcome, rankMovement, teamRecord, teamSide } from "./standings.js";
@@ -229,7 +229,7 @@ function displayPrediction(match) {
 }
 
 function renderAccuracy() {
-  const { correct, eligible, rate } = predictionAccuracy(state.snapshots);
+  const { correct, eligible, rate } = predictionAccuracy(state.snapshots, ACCURACY_WINDOW_MATCHES);
   if (rate == null) {
     el["accuracy-summary"].innerHTML = `<p class="accuracy-pending">${escapeHtml(t("accuracyPending"))}</p>`;
     return;
