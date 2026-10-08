@@ -51,3 +51,45 @@ A prior chosen using earlier seasons improved the 2026 first-35 result only from
 5. Require positive paired out-of-time accuracy and no worsening in log loss before merging into `main`.
 
 **Production status:** no changes to `main`. These experiments only live on `experiment/fgc-2026-live-weight`.
+
+
+## 2026-10-08 follow-up: Bayesian and online-calibration ablations
+
+### Bayesian shrinkage and team-experience uncertainty
+
+Script: \`scripts/experiment-bayesian-2026.mjs\`. 4,860 independent configurations applied per-team match-count dependent shrinkage of learned deviations, exponential fading of the multi-year prior, and uncertainty contraction of favored-side probability, plus tweaks to online score and winner update rates. Same-scheduled-time match results are only applied **after** all predictions in the group.
+
+Live dataset sampled at 92 played ranking matches (91 decisive):
+
+| Parameter-selection criterion | Accuracy | Log Loss |
+|---|---:|---:|
+| Production 2026 winner model | 64/91 = 70.3% | 0.6112 |
+| Best first-55 development candidate | 64/91 = 70.3% | 0.6129 |
+
+Development segment (first 55, 54 decisive): production 38/54 and candidate 38/54. Middle (matches 56–90, 35 decisive): production 24/35 and candidate 24/35, but the candidate log loss worsened from 0.6665 to 0.6767. Only two decisive matches were newly observed beyond match 90. **No independent improvement validated.** Shrinking the learned score differences too strongly often worsens results; model is already partially regularized through its historical priors and capped updates.
+
+Actions run: https://github.com/haruto-yamanishi/fgc-statbotics/actions/runs/37743892557
+
+### Online log-odds calibration and bias correction
+
+Script: \`scripts/experiment-calibration-2026.mjs\`. 3,840 independent combinations of historical/new winner-prediction blend, rolling logistic intercept (red-vs-blue bias), temperature/slope, gradient learning rate, weight decay, and calibration blending. This is online pre-game learning only, with no same-time leakage.
+
+Live dataset sampled at 93 played matches (92 decisive):
+
+| Metric | Production | Candidate selected using first 55 games |
+|---|---:| ---: |
+| All decided matches | 64/92 = 69.6% | 64/92 = 69.6% |
+| All Log Loss | 0.6171 | 0.6150 |
+| First 55 games (54 decisive) | 38/54 | 39/54 |
+| Matches 56–90 | 24/35 | 23/35 |
+| New matches after 90 | 2/3 | 2/3 |
+
+Online probability calibration may marginally reduce Log Loss, but it did not improve out-of-time wins. Newest test portion has just three decisive games; do not imply statistical confidence.
+
+Actions run: https://github.com/haruto-yamanishi/fgc-statbotics/actions/runs/37744019441
+
+### Recommendation
+
+**Keep production model unchanged.** All ~8,700 new combinations were evaluated without demonstrated later-period accuracy improvement. Preserve the models for further prospective trials.
+
+Highest priority: solve the first-game cold-start weakness through independently available pre-match team signals (robot inspection readiness, same-year scouting, actual previous FGC team continuity, disaggregated scoring where allowed), and consider true chronological provenance snapshots of predictions before new match results are published. Do not optimize the public recent-10-match headline directly; retain full-season paired accuracy, Log Loss and Brier for model comparisons.
