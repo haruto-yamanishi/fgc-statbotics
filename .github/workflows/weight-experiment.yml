@@ -14,4 +14,4 @@ jobs:
         with:
           node-version: '22'
       - run: npm test
-      - run: node scripts/experiment-cold-blend.mjs
+      - run: node scripts/validate-cold-crossyear.mjs
