@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { allianceOutcome, rankMovement, teamRecord } from "../src/standings.js";
+import { allianceOutcome, projectedOutcome, rankMovement, teamRecord } from "../src/standings.js";
 
 const match = (redScore, blueScore, played = true) => ({
   played, redScore, blueScore,
@@ -24,4 +24,14 @@ test("終了試合の勝敗は所属アライアンスの得点から数え、�
   assert.equal(allianceOutcome(matches[0], "blue"), "lose");
   assert.equal(allianceOutcome(matches[2], "red"), "tie");
   assert.equal(allianceOutcome(matches[3], "red"), null);
+});
+
+test("予測勝率の表示に合わせて両アライアンスの WIN / LOSE / 五分を判定する", () => {
+  assert.equal(projectedOutcome(67, "red"), "win");
+  assert.equal(projectedOutcome(67, "blue"), "lose");
+  assert.equal(projectedOutcome(49, "red"), "lose");
+  assert.equal(projectedOutcome(49, "blue"), "win");
+  assert.equal(projectedOutcome(50, "red"), "even");
+  assert.equal(projectedOutcome(50, "blue"), "even");
+  assert.equal(projectedOutcome(101, "red"), null);
 });

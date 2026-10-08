@@ -14,6 +14,12 @@ export function allianceOutcome(match, side) {
   return (side === "red" ? red > blue : blue > red) ? "win" : "lose";
 }
 
+export function projectedOutcome(redPercent, side) {
+  if (!["red", "blue"].includes(side) || !Number.isInteger(redPercent) || redPercent < 0 || redPercent > 100) return null;
+  if (redPercent === 50) return "even";
+  return (side === "red" ? redPercent > 50 : redPercent < 50) ? "win" : "lose";
+}
+
 export function teamRecord(matches, teamKey) {
   const record = { wins: 0, losses: 0, ties: 0 };
   for (const match of matches) {
