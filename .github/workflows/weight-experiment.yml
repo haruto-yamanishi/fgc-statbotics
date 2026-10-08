@@ -15,4 +15,4 @@ jobs:
           node-version: '22'
       - run: npm test
       - run: node scripts/compare-live-weights.mjs
-      - run: node scripts/optimize-2026-components.mjs
+      - run: node scripts/check-integrated-game.mjs
