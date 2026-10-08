@@ -43,6 +43,7 @@ export function buildRatings(roster, currentMatches, history = [], params = MODE
   const current = buildTeamMetrics(roster, currentMatches, params.epaLambda);
   const currentZ = standardized(current);
   const prior = new Map();
+  const previousRanks = new Map((history[0]?.rankings || []).map((ranking) => [teamCode(ranking), ranking.rank]));
 
   history.forEach((season, index) => {
     if (!season?.rankings?.length) return;
@@ -52,10 +53,9 @@ export function buildRatings(roster, currentMatches, history = [], params = MODE
       const code = teamCode(ranking);
       const z = normalized.get(Number(ranking.teamKey));
       if (!code || !Number.isFinite(z)) continue;
-      const entry = prior.get(code) || { rating: 0, seasons: 0, previousRank: null };
+      const entry = prior.get(code) || { rating: 0, seasons: 0 };
       entry.rating += (PRIOR_WEIGHTS[index] || 0) * z;
       entry.seasons += 1;
-      if (index === 0) entry.previousRank = ranking.rank;
       prior.set(code, entry);
     }
   });
@@ -72,7 +72,7 @@ export function buildRatings(roster, currentMatches, history = [], params = MODE
       ...metric,
       rating: clamp(rating, -2.5, 2.5),
       historical: Boolean(historical),
-      previousRank: historical?.previousRank ?? null,
+      previousRank: previousRanks.get(teamCode(team)) ?? null,
     }];
   }));
 }

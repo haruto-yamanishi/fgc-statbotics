@@ -34,6 +34,14 @@ test("前年のチーム ID が変わっても国コードで予測に使う", (
   assert.ok(predictMatch(current, ratings).redProbability > 0.5);
 });
 
+test("前年の試合結果がなくても前年の公式順位を参照できる", () => {
+  const current = match([participant(88, "JPN")], [participant(42, "CRC")], 0, 0, false);
+  const previous = { rankings: [{ teamKey: 1, rank: 100, team: { country: "JPN" } }], matches: [] };
+  const ratings = buildRatings(buildRoster([], [current]), [current], [previous]);
+  assert.equal(ratings.get(88).previousRank, 100);
+  assert.equal(ratings.get(88).historical, false);
+});
+
 test("実績がなければ五分、今年の得点資料が足りなければスコアを出さない", () => {
   const scheduled = match([participant(88, "JPN")], [participant(42, "CRC")], 0, 0, false);
   const ratings = buildRatings(buildRoster([], [scheduled]), [scheduled]);

@@ -1,6 +1,7 @@
 import { fetchSeason } from "./api.js";
 import { isOfficialMatch } from "./epa.js";
 import { buildRoster, buildSeasonModel, matchKey, predictMatch, teamCode, teamNameJa as displayName } from "./predict.js";
+import { allianceOutcome, rankMovement, teamRecord } from "./standings.js";
 
 const DEFAULT_TEAM = "JPN";
 const AUTO_REFRESH_MS = 60_000;
@@ -223,12 +224,15 @@ function renderTeam() {
     return;
   }
   const metric = state.ratings.get(Number(team.teamKey)) || {};
-  const upcoming = teamMatches().filter((match) => !match.played).length;
+  const matches = teamMatches();
+  const upcoming = matches.filter((match) => !match.played).length;
+  const record = teamRecord(matches, team.teamKey);
+  const movement = rankMovement(team.rank, metric.previousRank);
   const componentNote = state.year === 2026 ? "得点詳細の公開後に算出" : "内訳は 2026 年のみ";
   el["selected-team-title"].textContent = `${displayName(team)} · ${teamCode(team)}`;
   el["team-summary"].innerHTML = [
-    statCard("これからの試合", formatNumber(upcoming), "公開済みの対戦表", true),
-    statCard("公式順位", team.rank == null ? "—" : `#${formatNumber(team.rank)}`, team.rank == null ? "まだ未発表" : "FIRST Global 公式"),
+    statCard("勝敗", `${formatNumber(record.wins)}勝 ${formatNumber(record.losses)}敗`, `引き分け ${formatNumber(record.ties)}試合 · 今後 ${formatNumber(upcoming)}試合`, true),
+    statCard("公式順位", team.rank == null ? "—" : `#${formatNumber(team.rank)}`, team.rank == null ? "まだ未発表" : "FIRST Global 公式", false, rankMovementBadge(movement)),
     statCard("総合 EPA", formatDecimal(metric.epa), metric.epaRank ? `EPA #${metric.epaRank} · ${metric.modelGames} 試合` : "今年の試合後に算出", true),
     statCard("本体 EPA", formatDecimal(metric.mainEpa), metric.mainEpaRank ? `#${metric.mainEpaRank} · 終盤以外` : componentNote),
     statCard("終盤 EPA", formatDecimal(metric.endgameEpa), metric.endgameEpaRank ? `#${metric.endgameEpaRank} · 登坂など` : componentNote),
@@ -315,9 +319,11 @@ function renderResultCard(match) {
   };
   const [label, className] = verdicts[snapshot?.verdict] || ["予測なし", "neutral"];
   const redPct = snapshot ? Math.round(snapshot.redProbability * 100) : null;
+  const redOutcome = allianceOutcome(match, "red");
+  const blueOutcome = allianceOutcome(match, "blue");
   return `<article class="result-card">
     <div class="result-heading"><div><strong>${escapeHtml(matchLabel(match))}</strong><span>${escapeHtml(matchTime(match))} · フィールド ${escapeHtml(String(match.field || "—"))}</span></div><span class="verdict ${className}">${label}</span></div>
-    <div class="result-content"><div class="result-side red"><b>赤 · ${escapeHtml(red)}</b><div><span>実得点</span><strong>${formatNumber(match.redScore)}</strong></div><small>試合前予測 ${snapshot?.projected?.red ?? "—"} 点</small></div><div class="result-versus">対</div><div class="result-side blue"><b>青 · ${escapeHtml(blue)}</b><div><span>実得点</span><strong>${formatNumber(match.blueScore)}</strong></div><small>試合前予測 ${snapshot?.projected?.blue ?? "—"} 点</small></div></div>
+    <div class="result-content"><div class="result-side red"><div class="result-side-heading"><b>赤 · ${escapeHtml(red)}</b>${resultBadge(redOutcome)}</div><div><span>実得点</span><strong>${formatNumber(match.redScore)}</strong></div><small>試合前予測 ${snapshot?.projected?.red ?? "—"} 点</small></div><div class="result-versus">対</div><div class="result-side blue"><div class="result-side-heading"><b>青 · ${escapeHtml(blue)}</b>${resultBadge(blueOutcome)}</div><div><span>実得点</span><strong>${formatNumber(match.blueScore)}</strong></div><small>試合前予測 ${snapshot?.projected?.blue ?? "—"} 点</small></div></div>
     <div class="result-footer"><span>${snapshot ? `試合前の勝率 · 赤 ${redPct}% / 青 ${100 - redPct}%` : "試合前予測なし"}</span><span>終了後のデータはこの試合の予測に使用していません</span></div>
   </article>`;
 }
@@ -349,6 +355,7 @@ function renderLeaderboard() {
       <td>${formatDecimal(metric.endgameEpa)}</td>
       <td>${formatNumber(metric.modelGames)}</td>
       <td>${team.rank == null ? "—" : `#${formatNumber(team.rank)}`}</td>
+      <td>${rankMovementBadge(rankMovement(team.rank, metric.previousRank)) || "—"}</td>
       <td>${validPrediction ? `#${predictionRanks.get(key)} · ${signed(metric.rating)}` : "—"}</td>
     </tr>`;
   }).join("");
@@ -398,8 +405,18 @@ function sortMatches(a, b) {
   return (Number.isFinite(aTime) ? aTime : Infinity) - (Number.isFinite(bTime) ? bTime : Infinity)
     || Number(a.id || 0) - Number(b.id || 0);
 }
-function statCard(label, value, note, emphasis = false) {
-  return `<div class="stat-card ${emphasis ? "emphasis" : ""}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong><small>${escapeHtml(note)}</small></div>`;
+function statCard(label, value, note, emphasis = false, extra = "") {
+  return `<div class="stat-card ${emphasis ? "emphasis" : ""}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong><small>${escapeHtml(note)}</small>${extra}</div>`;
+}
+function rankMovementBadge(movement) {
+  if (movement == null) return "";
+  const trend = movement > 0 ? "up" : movement < 0 ? "down" : "same";
+  const label = movement > 0 ? `↑${formatNumber(movement)}位` : movement < 0 ? `↓${formatNumber(-movement)}位` : "→変動なし";
+  return `<span class="rank-movement ${trend}">前年比 ${label}</span>`;
+}
+function resultBadge(outcome) {
+  if (!outcome) return "";
+  return `<span class="result-badge ${outcome}">${outcome === "tie" ? "DRAW" : outcome.toUpperCase()}</span>`;
 }
 function formatNumber(value) {
   return value == null || !Number.isFinite(Number(value)) ? "—" : numberFormat.format(Number(value));
