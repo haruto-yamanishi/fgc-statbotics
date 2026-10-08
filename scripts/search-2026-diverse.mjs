@@ -52,7 +52,7 @@ const teamIds=[...new Set(matches.flatMap(x=>[...x.r,...x.b]))];
 const priorRatings=new Map(teamIds.map(id=>[id,historical.get(id)?.rating||0]));
 const average=xs=>xs.length?xs.reduce((a,b)=>a+b,0)/xs.length:0;
 const cfor=x=>Number.isFinite(x)?x:0;
-function trial(cfg) {
+function trial(cfg, keepPicks = false) {
  const ratings=new Map(teamIds.map(id=>[id,(priorRatings.get(id)||0)*cfg.prior]));
  const obs=new Map(teamIds.map(id=>[id,{n:0,brace:0,high:0,score:0}]));
  const picks=[];
@@ -101,7 +101,7 @@ function trial(cfg) {
    }
   }
  }
- return {early:score(picks,0,cutoffA),select:score(picks,cutoffA,cutoffB),late:score(picks,cutoffB,matches.length),all:score(picks,0,matches.length)};
+ return {early:score(picks,0,cutoffA),select:score(picks,cutoffA,cutoffB),late:score(picks,cutoffB,matches.length),all:score(picks,0,matches.length), ...(keepPicks?{picks}:{})};
 }
 let seed=20261008;const rng=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
 const choice=xs=>xs[Math.floor(rng()*xs.length)];
@@ -141,6 +141,38 @@ const knownCutoff=proposals.slice().sort((a,b)=>a.select.logLoss-b.select.logLos
 const top2026=proposals.slice().sort((a,b)=>b.all.correct-a.all.correct || a.all.logLoss-b.all.logLoss);
 const strongest=proposals.filter(x=>x.select.correct>=baseline.select.correct&&x.select.logLoss<baseline.select.logLoss&&x.late.correct>=baseline.late.correct&&x.late.logLoss<baseline.late.logLoss).sort((a,b)=>a.trainMetric-b.trainMetric);
 const compact=x=>({cfg:x.cfg,early:x.early,select:x.select,late:x.late,all:x.all,trainMetric:x.trainMetric});
+// Development-only candidate choices: not ranked using the late segment.
+const constrained=proposals.filter(x=>x.early.logLoss<=baseline.early.logLoss+.025
+ && x.select.logLoss<baseline.select.logLoss-.015
+ && x.select.correct>=baseline.select.correct+1
+ && x.early.correct>=baseline.early.correct)
+ .sort((a,b)=>(.45*a.early.logLoss+.55*a.select.logLoss)-(.45*b.early.logLoss+.55*b.select.logLoss));
+const finalist=constrained.slice(0,100);
+const groupsOfPicks=finalist.map(x=>trial(x.cfg,true).picks);
+function ensemble(count,baselineShare=0,concentration=1){
+ if(!count||!groupsOfPicks.length)return null;
+ const ensembleP=matches.map((m,i)=>{
+  const options=groupsOfPicks.slice(0,Math.min(count,groupsOfPicks.length));
+  const mean=options.reduce((s,rows)=>s+rows[i].p,0)/options.length;
+  const pooled=(1-baselineShare)*mean+baselineShare*m.prior;
+  return {i,p:Math.max(.05,Math.min(.95,.5+(pooled-.5)*concentration)),outcome:m.outcome};
+ });
+ return {count,baselineShare,concentration,early:score(ensembleP,0,cutoffA),select:score(ensembleP,cutoffA,cutoffB),late:score(ensembleP,cutoffB,matches.length),all:score(ensembleP,0,matches.length)};
+}
+const ensembles=[];
+for(const count of [1,3,10,30,100])
+ for(const baselineShare of [0,.25,.5,.75])
+  for(const concentration of [.75,1,1.25])ensembles.push(ensemble(count,baselineShare,concentration));
+const ensembleDevelopmentRank=ensembles.slice().sort((a,b)=>
+ (.45*a.early.logLoss+.55*a.select.logLoss)-(.45*b.early.logLoss+.55*b.select.logLoss));
+const jointDevAndLate=ensembles.filter(x=>x.select.logLoss<baseline.select.logLoss&&x.late.logLoss<baseline.late.logLoss&&x.late.correct>baseline.late.correct);
+console.log("FGC_DEVELOPMENT_SELECTION "+JSON.stringify({
+ baseline,developmentFeasibleCount:constrained.length,
+ selectedByDevelopment:constrained.slice(0,12).map(compact),
+ ensembleCount:ensembles.length,topEnsemblesByDevelopment:ensembleDevelopmentRank.slice(0,12),
+ jointDevAndLateEnsembles:jointDevAndLate.slice(0,6),
+ note:"Late segment has been inspected in previous exploratory runs, so not an untouched blind test."
+}));
 console.log("FGC_BROAD_2026 "+JSON.stringify({
  count:proposals.length,played:matches.length,periods:{early:[1,cutoffA],select:[cutoffA+1,cutoffB],late:[cutoffB+1,matches.length]},
  baseline,trainSelected:trainSelected.slice(0,12).map(compact),
