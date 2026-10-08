@@ -75,6 +75,20 @@ input:focus, select:focus, button:focus-visible, a:focus-visible { outline: 2px 
 .rank-movement.up { color: #067647; background: #ecfdf3; }
 .rank-movement.down { color: #b42318; background: #fef3f2; }
 .rank-movement.same { color: #475467; background: #f2f4f7; }
+
+/* Measured pre-match winner prediction performance. */
+.accuracy-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, 390px); align-items: center; gap: 24px; padding: 19px 22px; margin-bottom: 20px; background: linear-gradient(110deg, #fff 58%, #f6faff); }
+.accuracy-heading h3 { font-size: 18px; }
+.accuracy-heading .section-description { max-width: 600px; }
+.accuracy-exclusion { margin: 7px 0 0; color: var(--muted); font-size: 11px; }
+.accuracy-summary { min-width: 0; }
+.accuracy-metric { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; }
+.accuracy-metric strong { color: #1d4ed8; font-size: clamp(30px, 4vw, 39px); font-weight: 800; line-height: 1.15; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.accuracy-count { color: #475467; font-size: 12px; font-weight: 650; }
+.accuracy-progress { height: 9px; margin-top: 11px; overflow: hidden; border-radius: 9px; background: #e2e8f0; }
+.accuracy-progress > span { display: block; height: 100%; border-radius: inherit; background: #2563eb; }
+.accuracy-pending { display: block; color: var(--muted); font-size: 13px; }
+
 .predictions-section { margin-bottom: 28px; }
 .predictions-section > .section-title { margin-bottom: 16px; }
 .featured { padding: 20px 24px; margin-bottom: 24px; border: 1px solid #d9e4f2; border-radius: 8px; background: #fff; box-shadow: var(--shadow); }
@@ -230,6 +244,7 @@ footer { border-top: 1px solid var(--line); background: #fff; }
   .summary-grid { gap: 7px; }
   .stat-card { padding: 11px; }
   .stat-card strong { font-size: 22px; }
+  .accuracy-panel { grid-template-columns: 1fr; gap: 12px; padding: 16px; }
   .featured { padding: 15px; }
   .featured-top { align-items: flex-start; flex-direction: column; gap: 4px; }
   .featured-body { grid-template-columns: 1fr 1fr; gap: 12px; }

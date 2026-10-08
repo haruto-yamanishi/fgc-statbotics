@@ -1,5 +1,5 @@
 import { allianceRows, buildTeamMetrics, isOfficialMatch } from "./epa.js";
-import { t } from "./i18n.js?v=20261008-4";
+import { t } from "./i18n.js?v=20261008-5";
 import { MODEL_PARAMS } from "./model-config.js";
 
 const PRIOR_WEIGHTS = [0.7, 0.3];

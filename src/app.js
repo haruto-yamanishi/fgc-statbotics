@@ -1,7 +1,8 @@
 import { fetchSeason } from "./api.js?v=20261008-4";
+import { predictionAccuracy } from "./accuracy.js";
 import { isOfficialMatch } from "./epa.js";
-import { getLocaleTag, localeTags, resolveLocale, setLocale, t, translateStatic } from "./i18n.js?v=20261008-4";
-import { buildRoster, buildSeasonModel, matchKey, predictMatch, teamCode, teamName } from "./predict.js?v=20261008-4";
+import { getLocaleTag, localeTags, resolveLocale, setLocale, t, translateStatic } from "./i18n.js?v=20261008-5";
+import { buildRoster, buildSeasonModel, matchKey, predictMatch, teamCode, teamName } from "./predict.js?v=20261008-5";
 import { completedRankingScores, countedRankingParticipant, isRankingMatch, projectedFinalRankingScores, projectedRankingPositions, rankingScore } from "./ranking-score.js";
 import { allianceOutcome, projectedOutcome, rankMovement, teamRecord, teamSide } from "./standings.js";
 
@@ -48,7 +49,7 @@ const state = {
 const ids = [
   "language-select", "year-select", "event-state", "last-updated", "refresh-button", "data-note", "error-box",
   "team-search", "team-search-status", "team-select", "selected-team-title", "team-summary", "prediction-source",
-  "featured-prediction", "schedule-count", "show-team", "show-all", "match-search",
+  "accuracy-summary", "featured-prediction", "schedule-count", "show-team", "show-all", "match-search",
   "prediction-list", "show-more", "results-count", "show-results-team", "show-results-all",
   "result-list", "results-more", "leader-search", "sort-select", "sort-current-ranking", "sort-projected-final", "current-ranking-header", "projected-final-header", "leaderboard-body",
 ];
@@ -206,11 +207,26 @@ function renderAll() {
     ? t("sourceLive", { matches: formatNumber(Math.floor(state.scoring.playedAlliances / 2)) })
     : state.historyYears ? t("sourceHistory", { years: formatNumber(state.historyYears) }) : t("insufficientScores");
   updateTeamPicker();
+  renderAccuracy();
   renderTeam();
   renderFeatured();
   renderSchedule();
   renderResults();
   renderLeaderboard();
+}
+
+function renderAccuracy() {
+  const { correct, eligible, rate } = predictionAccuracy(state.snapshots);
+  if (rate == null) {
+    el["accuracy-summary"].innerHTML = `<p class="accuracy-pending">${escapeHtml(t("accuracyPending"))}</p>`;
+    return;
+  }
+  const percentage = new Intl.NumberFormat(getLocaleTag(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(rate);
+  el["accuracy-summary"].innerHTML = `<div class="accuracy-metric">
+    <strong>${escapeHtml(percentage)}%</strong>
+    <span class="accuracy-count">${escapeHtml(t("accuracyRecord", { correct: formatNumber(correct), total: formatNumber(eligible) }))}</span>
+  </div>
+  <div class="accuracy-progress" role="progressbar" aria-label="${escapeHtml(t("accuracyTitle"))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${rate.toFixed(1)}"><span style="width:${rate}%"></span></div>`;
 }
 
 function selectTeam(teamKey, keepSearch = false) {

@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#343a40" />
     <title data-i18n="pageTitle">FGC Stats | Schedule and Match Predictions</title>
     <link rel="preconnect" href="https://api.first.global" crossorigin />
-    <link rel="stylesheet" href="./styles.css?v=20261008-4" />
+    <link rel="stylesheet" href="./styles.css?v=20261008-5" />
   </head>
   <body>
     <header class="topbar">
@@ -49,6 +49,15 @@
 
       <section id="predictions" class="predictions-section">
         <div class="section-title"><div><p class="eyebrow" data-i18n="matchEyebrow">MATCH DATA</p><h2 data-i18n="predictions">Predictions</h2><p class="section-description" data-i18n="predictionDescription">Projected scores update with event progress and this year's results. View them alongside win probabilities.</p></div><span id="prediction-source" class="source-badge" data-i18n="calculating">Calculating</span></div>
+        <section id="accuracy" class="accuracy-panel panel" aria-labelledby="accuracy-title">
+          <div class="accuracy-heading">
+            <p class="eyebrow" data-i18n="accuracyEyebrow">MODEL PERFORMANCE</p>
+            <h3 id="accuracy-title" data-i18n="accuracyTitle">Prediction accuracy</h3>
+            <p class="section-description" data-i18n="accuracyDescription">Pre-match winner predictions across all completed official matches this season.</p>
+            <p class="accuracy-exclusion" data-i18n="accuracyExclusion">Draws and 50/50 predictions are excluded.</p>
+          </div>
+          <div id="accuracy-summary" class="accuracy-summary" aria-live="polite"><span class="accuracy-pending" data-i18n="calculating">Calculating</span></div>
+        </section>
         <div id="featured-prediction"></div>
         <div class="list-heading"><h3><span data-i18n="schedule">Match schedule</span> <span id="schedule-count"></span></h3><div class="schedule-controls"><div class="segmented" role="group" data-i18n-aria="scheduleView" aria-label="Matches to show"><button id="show-team" class="active" type="button" data-i18n="selectedTeamOnly">Selected team</button><button id="show-all" type="button" data-i18n="allMatches">All matches</button></div><input id="match-search" type="search" data-i18n-placeholder="matchSearchPlaceholder" data-i18n-aria="matchSearch" placeholder="Match number or country" aria-label="Search matches" autocomplete="off" /></div></div>
         <div id="prediction-list" class="prediction-list"></div>
@@ -63,6 +72,6 @@
     </main>
 
     <footer><div class="shell footer-inner"><span data-i18n="footerData">Data: FIRST Global public results API · refreshed every 60 seconds</span><span data-i18n="footerDisclaimer">Independent analysis site · not affiliated with FIRST Global or Statbotics</span></div></footer>
-    <script type="module" src="./src/app.js?v=20261008-4"></script>
+    <script type="module" src="./src/app.js?v=20261008-5"></script>
   </body>
 </html>
