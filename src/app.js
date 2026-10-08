@@ -1,8 +1,9 @@
 import { fetchSeason } from "./api.js?v=20261008-4";
 import { ACCURACY_WINDOW_MATCHES, predictionAccuracy } from "./accuracy.js?v=20261008-8";
 import { buildOpponentAwareModel } from "./opponent-aware.js";
+import { build2026ScoreForecaster } from "./score-forecast.js?v=20261008-10";
 import { isOfficialMatch } from "./epa.js";
-import { getLocaleTag, localeTags, resolveLocale, setLocale, t, translateStatic } from "./i18n.js?v=20261008-8";
+import { getLocaleTag, localeTags, resolveLocale, setLocale, t, translateStatic } from "./i18n.js?v=20261008-10";
 import { buildRoster, buildSeasonModel, matchKey, predictMatch, teamCode, teamName } from "./predict.js?v=20261008-5";
 import { completedRankingScores, countedRankingParticipant, isRankingMatch, projectedFinalRankingScores, projectedRankingPositions, rankingScore } from "./ranking-score.js";
 import { allianceOutcome, projectedOutcome, rankMovement, teamRecord, teamSide } from "./standings.js";
@@ -30,6 +31,7 @@ const state = {
   scoring: null,
   snapshots: new Map(),
   opponentAware: null,
+  scoreForecaster: null,
   currentRankingScores: new Map(),
   projectedFinalRanks: new Map(),
   projectedFinalPositions: new Map(),
@@ -154,12 +156,15 @@ async function loadSeason() {
     state.opponentAware = state.year === 2026
       ? buildOpponentAwareModel(state.roster, data.matches, history, model.snapshots)
       : null;
+    state.scoreForecaster = state.year === 2026
+      ? build2026ScoreForecaster(data.matches, model.ratings)
+      : null;
     state.snapshots = state.opponentAware?.snapshots || model.snapshots;
     state.currentRankingScores = state.year === 2026
       ? new Map(state.roster.map((team) => [Number(team.teamKey), rankingScore(completedRankingScores(data.matches, team.teamKey))]))
       : new Map();
     state.projectedFinalRanks = state.year === 2026
-      ? projectedFinalRankingScores(data.matches, state.roster.map((team) => team.teamKey), (match) => predictMatch(match, model.ratings, model.scoring))
+      ? projectedFinalRankingScores(data.matches, state.roster.map((team) => team.teamKey), displayPrediction)
       : new Map();
     state.projectedFinalPositions = projectedRankingPositions(state.projectedFinalRanks);
     state.historyYears = history.filter(Boolean).length;
@@ -208,9 +213,11 @@ function renderAll() {
   if (state.scoring?.source === "prior") notes.push(t("provisionalScores"));
   el["data-note"].hidden = !notes.length;
   el["data-note"].textContent = notes.join(" ");
-  el["prediction-source"].textContent = state.scoring?.source === "live"
-    ? t("sourceLive", { matches: formatNumber(Math.floor(state.scoring.playedAlliances / 2)) })
-    : state.historyYears ? t("sourceHistory", { years: formatNumber(state.historyYears) }) : t("insufficientScores");
+  el["prediction-source"].textContent = state.year === 2026
+    ? t(state.scoreForecaster?.games ? "scoreSource2026" : "scoreSource2026Pending")
+    : state.scoring?.source === "live"
+      ? t("sourceLive", { matches: formatNumber(Math.floor(state.scoring.playedAlliances / 2)) })
+      : state.historyYears ? t("sourceHistory", { years: formatNumber(state.historyYears) }) : t("insufficientScores");
   updateTeamPicker();
   renderAccuracy();
   renderTeam();
@@ -224,6 +231,7 @@ function displayPrediction(match) {
   const prediction = predictMatch(match, state.ratings, state.scoring);
   if (prediction && state.opponentAware) {
     prediction.redProbability = state.opponentAware.probability(match, prediction.redProbability);
+    prediction.projected = state.scoreForecaster?.project(match, prediction.redProbability) ?? null;
   }
   return prediction;
 }
@@ -345,7 +353,9 @@ function renderFeatured() {
   const bluePct = 100 - redPct;
   const selectedSide = teamSide(next.participants, state.selectedTeamKey);
   const projectedRank = projectedRankingScores().get(matchKey(next));
-  const scoreText = t(state.scoring?.source === "live" ? "scoreSourceLive" : "scoreSourcePrior");
+  const scoreText = state.year === 2026
+    ? t(state.scoreForecaster?.games ? "scoreSource2026" : "scoreSource2026Pending")
+    : t(state.scoring?.source === "live" ? "scoreSourceLive" : "scoreSourcePrior");
   el["featured-prediction"].innerHTML = `<article class="featured">
     <div class="featured-top"><div class="featured-heading"><strong>${escapeHtml(t("nextMatch", { match: matchLabel(next) }))}</strong>${predictionBadge(projectedOutcome(redPct, selectedSide), teamCode(selectedTeam()))}</div><span class="match-meta">${escapeHtml(matchTime(next))} · ${escapeHtml(t("field", { field: next.field || "—" }))}</span></div>
     <div class="featured-body">
@@ -391,7 +401,7 @@ function projectedRankingScores() {
   const future = teamMatches().filter((match) => !match.played && isRankingMatch(match) && countedRankingParticipant(match, state.selectedTeamKey)).sort(sortMatches);
   for (const match of future) {
     const side = teamSide(match.participants, state.selectedTeamKey);
-    const score = predictMatch(match, state.ratings, state.scoring)?.projected?.[side];
+    const score = displayPrediction(match)?.projected?.[side];
     if (!Number.isFinite(score)) continue;
     scores.push({ score, redCard: false });
     projected.set(matchKey(match), rankingScore(scores));
