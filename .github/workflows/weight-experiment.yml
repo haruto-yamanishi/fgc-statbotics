@@ -14,4 +14,4 @@ jobs:
         with:
           node-version: '22'
       - run: npm test
-      - run: node scripts/experiment-calibration-2026.mjs
+      - run: node scripts/experiment-structural-bayes.mjs
