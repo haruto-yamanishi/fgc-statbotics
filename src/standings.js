@@ -20,13 +20,18 @@ export function projectedOutcome(redPercent, side) {
   return (side === "red" ? redPercent > 50 : redPercent < 50) ? "win" : "lose";
 }
 
+export function teamSide(participants, teamKey) {
+  const participant = (participants || []).find((entry) => Number(entry.teamKey) === Number(teamKey));
+  const station = Number(participant?.station);
+  if (station >= 10 && station < 20) return "red";
+  if (station >= 20 && station < 30) return "blue";
+  return null;
+}
+
 export function teamRecord(matches, teamKey) {
   const record = { wins: 0, losses: 0, ties: 0 };
   for (const match of matches) {
-    const participant = (match.participants || []).find((entry) => Number(entry.teamKey) === Number(teamKey));
-    const station = Number(participant?.station);
-    const side = station >= 10 && station < 20 ? "red" : station >= 20 && station < 30 ? "blue" : null;
-    const outcome = allianceOutcome(match, side);
+    const outcome = allianceOutcome(match, teamSide(match.participants, teamKey));
     if (outcome === "win") record.wins += 1;
     if (outcome === "lose") record.losses += 1;
     if (outcome === "tie") record.ties += 1;

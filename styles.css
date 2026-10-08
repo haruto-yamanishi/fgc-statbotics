@@ -123,13 +123,10 @@ input:focus, select:focus, button:focus-visible, a:focus-visible { outline: 2px 
 .match-side.blue { text-align: right; }
 .match-side b { display: block; color: var(--red); font-size: 11px; }
 .match-side.blue b { color: var(--blue); }
-.match-side-heading { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
-.match-side.blue .match-side-heading { justify-content: flex-end; }
-.match-side-heading b { display: inline; }
-.match-side .prediction-badge { padding: 1px 4px; font-size: 10px; }
-.match-side > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #475467; font-size: 12px; }
+.match-side span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #475467; font-size: 12px; }
 .match-versus { color: #98a2b3; font-size: 11px; }
 .match-card-prediction { min-width: 0; }
+.match-card-prediction .prediction-badge { margin-bottom: 7px; padding: 4px 8px; font-size: 13px; }
 .compact-score { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
 .compact-score small { color: var(--muted); font-size: 10px; }
 .compact-score strong { font-size: 18px; letter-spacing: -.03em; white-space: nowrap; }

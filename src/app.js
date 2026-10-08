@@ -1,7 +1,7 @@
 import { fetchSeason } from "./api.js";
 import { isOfficialMatch } from "./epa.js";
 import { buildRoster, buildSeasonModel, matchKey, predictMatch, teamCode, teamNameJa as displayName } from "./predict.js";
-import { allianceOutcome, projectedOutcome, rankMovement, teamRecord } from "./standings.js";
+import { allianceOutcome, projectedOutcome, rankMovement, teamRecord, teamSide } from "./standings.js";
 
 const DEFAULT_TEAM = "JPN";
 const AUTO_REFRESH_MS = 60_000;
@@ -253,12 +253,12 @@ function renderFeatured() {
   }
   const redPct = Math.round(prediction.redProbability * 100);
   const bluePct = 100 - redPct;
-  const selectedSide = prediction.red.some((participant) => Number(participant.teamKey) === state.selectedTeamKey) ? "red" : "blue";
+  const selectedSide = teamSide(next.participants, state.selectedTeamKey);
   const scoreText = state.scoring?.source === "live"
     ? "今年の得点水準・直近の結果・大会進行度を反映"
     : "初戦前の得点は過去年の水準と大会進行度による暫定値";
   el["featured-prediction"].innerHTML = `<article class="featured">
-    <div class="featured-top"><div class="featured-heading"><strong>次の試合 · ${escapeHtml(matchLabel(next))}</strong>${predictionBadge(projectedOutcome(redPct, selectedSide))}</div><span class="match-meta">${escapeHtml(matchTime(next))} · フィールド ${escapeHtml(String(next.field || "—"))}</span></div>
+    <div class="featured-top"><div class="featured-heading"><strong>次の試合 · ${escapeHtml(matchLabel(next))}</strong>${predictionBadge(projectedOutcome(redPct, selectedSide), teamCode(selectedTeam()))}</div><span class="match-meta">${escapeHtml(matchTime(next))} · フィールド ${escapeHtml(String(next.field || "—"))}</span></div>
     <div class="featured-body">
       <div class="alliance red"><span class="alliance-label">赤アライアンス</span><div class="alliance-team-list">${prediction.red.map(teamChip).join("")}</div></div>
       <div class="probability-center"><small>予測得点 · Estimated Points</small><strong class="forecast-score"><span class="red-value">${prediction.projected?.red ?? "—"}</span><span class="score-divider">:</span><span class="blue-value">${prediction.projected?.blue ?? "—"}</span></strong><div class="forecast-unit">赤 : 青</div><div class="probability-bar" role="img" aria-label="赤 ${redPct} パーセント、青 ${bluePct} パーセント"><span style="width:${redPct}%"></span></div><div class="probability-labels"><span class="red-value">赤 ${redPct}%</span><span class="blue-value">青 ${bluePct}%</span></div></div>
@@ -286,12 +286,13 @@ function renderMatchCard(match) {
   const prediction = predictMatch(match, state.ratings, state.scoring);
   if (!prediction) return "";
   const redPct = Math.round(prediction.redProbability * 100);
+  const selectedSide = teamSide(match.participants, state.selectedTeamKey);
   const redTeams = prediction.red.map((p) => teamCodeFromParticipant(p)).join(" · ");
   const blueTeams = prediction.blue.map((p) => teamCodeFromParticipant(p)).join(" · ");
   return `<article class="match-card">
     <div class="match-card-id"><strong>${escapeHtml(matchLabel(match))}</strong><span>${escapeHtml(matchTime(match))} · フィールド ${escapeHtml(String(match.field || "—"))}</span></div>
-    <div class="match-card-sides"><div class="match-side"><div class="match-side-heading"><b>赤</b>${predictionBadge(projectedOutcome(redPct, "red"))}</div><span title="${escapeHtml(redTeams)}">${escapeHtml(redTeams)}</span></div><span class="match-versus">対</span><div class="match-side blue"><div class="match-side-heading"><b>青</b>${predictionBadge(projectedOutcome(redPct, "blue"))}</div><span title="${escapeHtml(blueTeams)}">${escapeHtml(blueTeams)}</span></div></div>
-    <div class="match-card-prediction"><div class="compact-score"><small>予測得点</small><strong><span class="red-value">${prediction.projected?.red ?? "—"}</span> : <span class="blue-value">${prediction.projected?.blue ?? "—"}</span></strong></div><div class="probability-bar" role="img" aria-label="赤 ${redPct} パーセント、青 ${100 - redPct} パーセント"><span style="width:${redPct}%"></span></div><div class="probability-labels"><span class="red-value">赤 ${redPct}%</span><span class="blue-value">青 ${100 - redPct}%</span></div></div>
+    <div class="match-card-sides"><div class="match-side"><b>赤</b><span title="${escapeHtml(redTeams)}">${escapeHtml(redTeams)}</span></div><span class="match-versus">対</span><div class="match-side blue"><b>青</b><span title="${escapeHtml(blueTeams)}">${escapeHtml(blueTeams)}</span></div></div>
+    <div class="match-card-prediction">${predictionBadge(projectedOutcome(redPct, selectedSide), selectedSide ? teamCode(selectedTeam()) : "")}<div class="compact-score"><small>予測得点</small><strong><span class="red-value">${prediction.projected?.red ?? "—"}</span> : <span class="blue-value">${prediction.projected?.blue ?? "—"}</span></strong></div><div class="probability-bar" role="img" aria-label="赤 ${redPct} パーセント、青 ${100 - redPct} パーセント"><span style="width:${redPct}%"></span></div><div class="probability-labels"><span class="red-value">赤 ${redPct}%</span><span class="blue-value">青 ${100 - redPct}%</span></div></div>
   </article>`;
 }
 
@@ -419,9 +420,9 @@ function resultBadge(outcome) {
   if (!outcome) return "";
   return `<span class="result-badge ${outcome}">${outcome === "tie" ? "DRAW" : outcome.toUpperCase()}</span>`;
 }
-function predictionBadge(outcome) {
+function predictionBadge(outcome, code = "") {
   if (!outcome) return "";
-  return `<span class="prediction-badge ${outcome}">予測 ${outcome === "even" ? "五分" : outcome.toUpperCase()}</span>`;
+  return `<span class="prediction-badge ${outcome}">${code ? `${escapeHtml(code)} · ` : ""}予測 ${outcome === "even" ? "五分" : outcome.toUpperCase()}</span>`;
 }
 function formatNumber(value) {
   return value == null || !Number.isFinite(Number(value)) ? "—" : numberFormat.format(Number(value));

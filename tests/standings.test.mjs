@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { allianceOutcome, projectedOutcome, rankMovement, teamRecord } from "../src/standings.js";
+import { allianceOutcome, projectedOutcome, rankMovement, teamRecord, teamSide } from "../src/standings.js";
 
 const match = (redScore, blueScore, played = true) => ({
   played, redScore, blueScore,
@@ -34,4 +34,14 @@ test("予測勝率の表示に合わせて両アライアンスの WIN / LOSE / 
   assert.equal(projectedOutcome(50, "red"), "even");
   assert.equal(projectedOutcome(50, "blue"), "even");
   assert.equal(projectedOutcome(101, "red"), null);
+});
+
+test("表示チームが赤・青のどちらかを判定し、無関係な試合では予想を出さない", () => {
+  const participants = match(90, 80).participants;
+  assert.equal(teamSide(participants, 1), "red");
+  assert.equal(teamSide(participants, 2), "blue");
+  assert.equal(teamSide(participants, 3), null);
+  assert.equal(projectedOutcome(49, teamSide(participants, 1)), "lose");
+  assert.equal(projectedOutcome(49, teamSide(participants, 2)), "win");
+  assert.equal(projectedOutcome(49, teamSide(participants, 3)), null);
 });
