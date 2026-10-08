@@ -28,7 +28,7 @@
     <main id="top" class="shell">
       <section class="page-heading">
         <div>
-          <p class="eyebrow">FIRST GLOBAL CHALLENGE · EVENT ANALYTICS</p>
+          <p class="eyebrow">FIRST GLOBAL CHALLENGE · 大会データ</p>
           <h1>対戦表と試合予測</h1>
           <p class="lead">公開された対戦表から、各試合の赤・青アライアンスの勝率を確認できます。</p>
         </div>
@@ -39,22 +39,22 @@
       <div id="data-note" class="data-note" role="status"></div>
 
       <section id="team" class="team-section panel">
-        <div class="section-title"><div><p class="eyebrow">TEAM OVERVIEW</p><h2 id="selected-team-title">日本</h2></div><span class="pill">選択中のチーム</span></div>
+        <div class="section-title"><div><p class="eyebrow">チーム別データ</p><h2 id="selected-team-title">日本</h2></div><span class="pill">選択中のチーム</span></div>
         <div class="team-picker"><label>チームを探す<input id="team-search" type="search" placeholder="国名・3文字コードで検索" autocomplete="off" /></label><label>表示チーム<select id="team-select" aria-label="表示するチーム"></select></label></div>
         <div id="team-summary" class="summary-grid" aria-live="polite"></div>
       </section>
 
       <section id="predictions" class="predictions-section">
-        <div class="section-title"><div><p class="eyebrow">MATCH PREDICTIONS</p><h2>試合予測</h2><p class="section-description">対戦表の参加国と過去の試合データから計算した推定値です。</p></div><span id="prediction-source" class="source-badge">計算中</span></div>
+        <div class="section-title"><div><p class="eyebrow">対戦データ</p><h2>試合予測</h2><p class="section-description">対戦表の参加国と過去の試合データから計算した推定値です。</p></div><span id="prediction-source" class="source-badge">計算中</span></div>
         <div id="featured-prediction"></div>
         <div class="list-heading"><h3>対戦スケジュール <span id="schedule-count"></span></h3><div class="schedule-controls"><div class="segmented" role="group" aria-label="表示する試合"><button id="show-team" class="active" type="button">選択チーム</button><button id="show-all" type="button">全試合</button></div><input id="match-search" type="search" placeholder="試合番号・国名で検索" aria-label="試合を検索" autocomplete="off" /></div></div>
         <div id="prediction-list" class="prediction-list"></div>
         <button id="show-more" class="show-more" type="button" hidden>さらに表示</button>
       </section>
 
-      <section class="panel recent-section"><div class="section-title"><div><p class="eyebrow">RESULTS</p><h2>選択チームの試合結果</h2></div></div><div id="past-list" class="past-list"></div></section>
+      <section class="panel recent-section"><div class="section-title"><div><p class="eyebrow">試合記録</p><h2>選択チームの試合結果</h2></div></div><div id="past-list" class="past-list"></div></section>
 
-      <section id="teams" class="panel leaderboard-section"><div class="section-title"><div><p class="eyebrow">TEAMS</p><h2>チーム一覧</h2><p class="section-description">公式順位と独自の予測評価を並べて確認できます。</p></div><div class="leader-controls"><input id="leader-search" type="search" placeholder="チームを検索" aria-label="チームを検索" autocomplete="off" /><select id="sort-select" aria-label="チーム一覧の並び順"><option value="prediction">予測評価順</option><option value="official">公式順位順</option><option value="epa">FGC EPA順</option><option value="previous">前年順位順</option></select></div></div><div class="table-wrap"><table><thead><tr><th>予測順位</th><th>チーム</th><th>公式順位</th><th>FGC EPA</th><th>前年順位</th><th>予測評価</th><th>試合数</th></tr></thead><tbody id="leaderboard-body"></tbody></table></div></section>
+      <section id="teams" class="panel leaderboard-section"><div class="section-title"><div><p class="eyebrow">参加チーム</p><h2>チーム一覧</h2><p class="section-description">公式順位と独自の予測評価を並べて確認できます。</p></div><div class="leader-controls"><input id="leader-search" type="search" placeholder="チームを検索" aria-label="チームを検索" autocomplete="off" /><select id="sort-select" aria-label="チーム一覧の並び順"><option value="prediction">予測評価順</option><option value="official">公式順位順</option><option value="epa">FGC EPA順</option><option value="previous">前年順位順</option></select></div></div><div class="table-wrap"><table><thead><tr><th>予測順位</th><th>チーム</th><th>公式順位</th><th>FGC EPA</th><th>前年順位</th><th>予測評価</th><th>試合数</th></tr></thead><tbody id="leaderboard-body"></tbody></table></div></section>
 
       <section id="model" class="model-panel"><h2>予測の見方</h2><p>2026 年の試合前は、2025 年と 2024 年の国別 EPA を標準化して勝率を推定します。2026 年の結果が増えると、今年の EPA を徐々に反映します。勝率は参考値で、公式の予測ではありません。</p><p>得点予測は今年の試合データが十分に集まってから表示します。FGC EPA はランキング戦の得点から推定した、各チームの得点貢献度です。公式順位とは計算方法が異なります。</p></section>
     </main>

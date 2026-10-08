@@ -321,7 +321,7 @@ function matchLabel(match) {
 function matchTime(match) {
   if (!match.scheduledTime) return "時刻未定";
   const date = new Date(match.scheduledTime);
-  return Number.isNaN(date.getTime()) ? "時刻未定" : `${dateFormat.format(date)} JST`;
+  return Number.isNaN(date.getTime()) ? "時刻未定" : `${dateFormat.format(date)} 日本時間`;
 }
 function sortMatches(a, b) {
   const aTime = Date.parse(a.scheduledTime);
